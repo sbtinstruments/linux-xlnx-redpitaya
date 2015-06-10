@@ -858,7 +858,6 @@ struct device_node *of_changeset_create_device_nodev(
 	node->parent = parent;
 	return node;
 }
-EXPORT_SYMBOL_GPL(of_changeset_create_device_nodev);
 
 /**
  * of_changeset_create_device_node - Create an empty device node
@@ -872,9 +871,9 @@ EXPORT_SYMBOL_GPL(of_changeset_create_device_nodev);
  *
  * Returns a device node on success, an error encoded pointer otherwise
  */
-__printf(3, 4) struct device_node *
-of_changeset_create_device_node(struct of_changeset *ocs,
-	struct device_node *parent, const char *fmt, ...)
+struct device_node *of_changeset_create_device_node(
+	struct of_changeset *ocs, struct device_node *parent,
+	const char *fmt, ...)
 {
 	va_list vargs;
 	struct device_node *node;
@@ -884,40 +883,39 @@ of_changeset_create_device_node(struct of_changeset *ocs,
 	va_end(vargs);
 	return node;
 }
-EXPORT_SYMBOL_GPL(of_changeset_create_device_node);
 
 /**
- * __of_changeset_add_property_copy - Create/update a new property copying
- *                                    name & value
+ * of_changeset_add_property_copy - Create a new property copying name & value
  *
  * @ocs:	changeset pointer
  * @np:		device node pointer
  * @name:	name of the property
  * @value:	pointer to the value data
  * @length:	length of the value in bytes
- * @update:	True on update operation
  *
- * Adds/updates a property to the changeset by making copies of the name & value
- * entries. The @update parameter controls whether an add or update takes place.
+ * Adds a property to the changeset by making copies of the name & value
+ * entries.
  *
  * Returns zero on success, a negative error value otherwise.
  */
-int __of_changeset_add_update_property_copy(struct of_changeset *ocs,
+int of_changeset_add_property_copy(struct of_changeset *ocs,
 		struct device_node *np, const char *name, const void *value,
-		int length, bool update)
+		int length)
 {
 	struct property *prop;
 	char *new_name;
 	void *new_value;
-	int ret = -ENOMEM;
+	int ret;
+
+	ret = -ENOMEM;
 
 	prop = kzalloc(sizeof(*prop), GFP_KERNEL);
 	if (!prop)
-		return -ENOMEM;
+		goto out_no_prop;
 
 	new_name = kstrdup(name, GFP_KERNEL);
 	if (!new_name)
-		goto out_err;
+		goto out_no_name;
 
 	/*
 	 * NOTE: There is no check for zero length value.
@@ -927,7 +925,7 @@ int __of_changeset_add_update_property_copy(struct of_changeset *ocs,
 	 */
 	new_value = kmemdup(value, length, GFP_KERNEL);
 	if (!new_value)
-		goto out_err;
+		goto out_no_value;
 
 	of_property_set_flag(prop, OF_DYNAMIC);
 
@@ -935,21 +933,41 @@ int __of_changeset_add_update_property_copy(struct of_changeset *ocs,
 	prop->value = new_value;
 	prop->length = length;
 
-	if (!update)
-		ret = of_changeset_add_property(ocs, np, prop);
-	else
-		ret = of_changeset_update_property(ocs, np, prop);
+	ret = of_changeset_add_property(ocs, np, prop);
+	if (ret != 0)
+		goto out_no_add;
 
-	if (!ret)
-		return 0;
+	return 0;
 
-out_err:
+out_no_add:
 	kfree(prop->value);
+out_no_value:
 	kfree(prop->name);
+out_no_name:
 	kfree(prop);
+out_no_prop:
 	return ret;
 }
-EXPORT_SYMBOL_GPL(__of_changeset_add_update_property_copy);
+
+/**
+ * of_changeset_add_property_string - Create a new string property
+ *
+ * @ocs:	changeset pointer
+ * @np:		device node pointer
+ * @name:	name of the property
+ * @str:	string property
+ *
+ * Adds a string property to the changeset by making copies of the name
+ * and the string value.
+ *
+ * Returns zero on success, a negative error value otherwise.
+ */
+int of_changeset_add_property_string(struct of_changeset *ocs,
+		struct device_node *np, const char *name, const char *str)
+{
+	return of_changeset_add_property_copy(ocs, np, name, str,
+			strlen(str) + 1);
+}
 
 /**
  * of_changeset_add_property_stringf - Create a new formatted string property
@@ -965,77 +983,47 @@ EXPORT_SYMBOL_GPL(__of_changeset_add_update_property_copy);
  *
  * Returns zero on success, a negative error value otherwise.
  */
-__printf(4, 5) int of_changeset_add_property_stringf(
-		struct of_changeset *ocs, struct device_node *np,
-		const char *name, const char *fmt, ...)
+int of_changeset_add_property_stringf(struct of_changeset *ocs,
+		struct device_node *np, const char *name, const char *fmt, ...)
 {
 	va_list vargs;
+	char *str;
 	int ret;
 
 	va_start(vargs, fmt);
-	ret = __of_changeset_add_update_property_stringv(ocs, np, name, fmt,
-			vargs, false);
+	str = kvasprintf(GFP_KERNEL, fmt, vargs);
 	va_end(vargs);
+
+	ret = of_changeset_add_property_string(ocs, np, name, str);
+
+	kfree(str);
 	return ret;
 }
-EXPORT_SYMBOL_GPL(of_changeset_add_property_stringf);
 
 /**
- * of_changeset_update_property_stringf - Update formatted string property
- *
- * @ocs:	changeset pointer
- * @np:		device node pointer
- * @name:	name of the property
- * @fmt:	format of string property
- * ...		arguments of the format string
- *
- * Updates a string property to the changeset by making copies of the name
- * and the formatted value.
- *
- * Returns zero on success, a negative error value otherwise.
- */
-int of_changeset_update_property_stringf(
-	struct of_changeset *ocs, struct device_node *np,
-	const char *name, const char *fmt, ...)
-{
-	va_list vargs;
-	int ret;
-
-	va_start(vargs, fmt);
-	ret = __of_changeset_add_update_property_stringv(ocs, np, name, fmt,
-			vargs, true);
-	va_end(vargs);
-	return ret;
-}
-EXPORT_SYMBOL_GPL(of_changeset_update_property_stringf);
-
-/**
- * __of_changeset_add_update_property_string_list - Create/update a string
- *                                                  list property
+ * of_changeset_add_property_string_list - Create a new string list property
  *
  * @ocs:	changeset pointer
  * @np:		device node pointer
  * @name:	name of the property
  * @strs:	pointer to the string list
  * @count:	string count
- * @update:	True on update operation
  *
  * Adds a string list property to the changeset.
  *
  * Returns zero on success, a negative error value otherwise.
  */
-int __of_changeset_add_update_property_string_list(
-		struct of_changeset *ocs, struct device_node *np,
-		const char *name, const char **strs, int count, bool update)
+int of_changeset_add_property_string_list(struct of_changeset *ocs,
+		struct device_node *np, const char *name, const char **strs,
+		int count)
 {
-	int total = 0, i, ret;
+	int total, length, i, ret;
 	char *value, *s;
 
+	total = 0;
 	for (i = 0; i < count; i++) {
-		/* check if  it's NULL */
-		if (!strs[i])
-			return -EINVAL;
-		total += strlen(strs[i]) + 1;
+		length = strlen(strs[i]);
+		total += length + 1;
 	}
 
 	value = kmalloc(total, GFP_KERNEL);
@@ -1043,16 +1031,53 @@ int __of_changeset_add_update_property_string_list(
 		return -ENOMEM;
 
 	for (i = 0, s = value; i < count; i++) {
-		/* no need to check for NULL, check above */
-		strcpy(s, strs[i]);
-		s += strlen(strs[i]) + 1;
+		length = strlen(strs[i]);
+		memcpy(s, strs[i], length + 1);
+		s += length + 1;
 	}
 
-	ret = __of_changeset_add_update_property_copy(ocs, np, name, value,
-			total, update);
+	ret = of_changeset_add_property_copy(ocs, np, name, value, total);
 
 	kfree(value);
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(__of_changeset_add_update_property_string_list);
+
+/**
+ * of_changeset_add_property_u32 - Create a new u32 property
+ *
+ * @ocs:	changeset pointer
+ * @np:		device node pointer
+ * @name:	name of the property
+ * @val:	value in host endian format
+ *
+ * Adds a u32 property to the changeset.
+ *
+ * Returns zero on success, a negative error value otherwise.
+ */
+int of_changeset_add_property_u32(struct of_changeset *ocs,
+		struct device_node *np, const char *name, u32 val)
+{
+	/* in place */
+	val = cpu_to_be32(val);
+	return of_changeset_add_property_copy(ocs, np, name, &val, sizeof(val));
+}
+
+/**
+ * of_changeset_add_property_bool - Create a new u32 property
+ *
+ * @ocs:	changeset pointer
+ * @np:		device node pointer
+ * @name:	name of the property
+ *
+ * Adds a bool property to the changeset. Note that there is
+ * no option to set the value to false, since the property
+ * existing sets it to true.
+ *
+ * Returns zero on success, a negative error value otherwise.
+ */
+int of_changeset_add_property_bool(struct of_changeset *ocs,
+		struct device_node *np, const char *name)
+{
+	return of_changeset_add_property_copy(ocs, np, name, "", 0);
+}

@@ -32,6 +32,9 @@ struct zynq_reset_data {
 #define to_zynq_reset_data(p)		\
 	container_of((p), struct zynq_reset_data, rcdev)
 
+
+
+
 static int zynq_reset_assert(struct reset_controller_dev *rcdev,
 			     unsigned long id)
 {
@@ -66,6 +69,13 @@ static int zynq_reset_deassert(struct reset_controller_dev *rcdev,
 				  ~BIT(offset));
 }
 
+static int zynq_reset(struct reset_controller_dev *rcdev,
+			     unsigned long id)
+{
+	zynq_reset_assert(rcdev,id);
+	return zynq_reset_deassert(rcdev,id);
+}
+
 static int zynq_reset_status(struct reset_controller_dev *rcdev,
 			     unsigned long id)
 {
@@ -87,6 +97,7 @@ static int zynq_reset_status(struct reset_controller_dev *rcdev,
 }
 
 static struct reset_control_ops zynq_reset_ops = {
+	.reset		= zynq_reset,
 	.assert		= zynq_reset_assert,
 	.deassert	= zynq_reset_deassert,
 	.status		= zynq_reset_status,

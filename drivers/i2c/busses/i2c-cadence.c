@@ -19,6 +19,7 @@
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/pm_runtime.h>
+#include <linux/reset.h>
 
 /* Register offsets for the I2C device. */
 #define CDNS_I2C_CR_OFFSET		0x00 /* Control Register, RW */
@@ -550,6 +551,10 @@ static void cdns_i2c_master_reset(struct i2c_adapter *adap)
 
 	/* Disable the interrupts */
 	cdns_i2c_writereg(CDNS_I2C_IXR_ALL_INTR_MASK, CDNS_I2C_IDR_OFFSET);
+
+	/* Call reset for cadance hw controller */
+	device_reset_optional(&adap->dev);
+
 	/* Clear the hold bit and fifos */
 	regval = cdns_i2c_readreg(CDNS_I2C_CR_OFFSET);
 	regval &= ~(CDNS_I2C_CR_HOLD | CDNS_I2C_CR_SLVMON);
@@ -1003,6 +1008,8 @@ static int cdns_i2c_probe(struct platform_device *pdev)
 	init_completion(&id->xfer_done);
 	snprintf(id->adap.name, sizeof(id->adap.name),
 		 "Cadence I2C at %08lx", (unsigned long)r_mem->start);
+	/* Add reset in probe function */
+	cdns_i2c_master_reset(&id->adap);
 
 	id->clk = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(id->clk)) {

@@ -86,6 +86,18 @@ struct fpga_image_info {
 };
 
 /**
+ * struct fpga_image_info - information specific to a FPGA image
+ * @flags: boolean flags as defined above
+ * @enable_timeout_us: maximum time to enable traffic through bridge (uSec)
+ * @disable_timeout_us: maximum time to disable traffic through bridge (uSec)
+ */
+struct fpga_image_info {
+	u32 flags;
+	u32 enable_timeout_us;
+	u32 disable_timeout_us;
+};
+
+/**
  * struct fpga_manager_ops - ops for low level fpga manager drivers
  * @state: returns an enum value of the FPGA's state
  * @write_init: prepare the FPGA to receive confuration data

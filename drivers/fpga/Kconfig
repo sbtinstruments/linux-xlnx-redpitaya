@@ -53,6 +53,13 @@ config XILINX_PR_DECOUPLER
 	  Say Y to enable drivers for Xilinx PR Decoupler. For more information
 	  look at pg227.pdf.
 
+config SOCFPGA_FPGA_BRIDGE
+	tristate "Altera SoCFPGA FPGA Bridges"
+	depends on ARCH_SOCFPGA && FPGA_BRIDGE
+	help
+	  Say Y to enable drivers for FPGA bridges for Altera SOCFPGA
+	  devices.
+
 endif # FPGA
 
 endmenu

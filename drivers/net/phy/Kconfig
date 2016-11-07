@@ -156,11 +156,6 @@ config MICROCHIP_PHY
 	help
 	  Supports the LAN88XX PHYs.
 
-config LANTIQ_PHY
-	tristate "Driver for Lantiq PHYs"
-	---help---
-	  Supports the 11G and 22E PHYs.
-
 config FIXED_PHY
 	tristate "Driver for MDIO Bus/PHY emulation with fixed speed/link PHYs"
 	depends on PHYLIB

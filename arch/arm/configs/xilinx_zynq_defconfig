@@ -242,6 +242,8 @@ CONFIG_FONT_8x16=y
 
 # Red Pitaya changes
 
+# Lantiq Ethernet PHY
+CONFIG_LANTIQ_PHY=y
 # Wireless
 CONFIG_WIRELESS=y
 CONFIG_RT2X00=y

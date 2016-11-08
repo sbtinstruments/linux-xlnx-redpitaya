@@ -32,9 +32,14 @@
 #define MII_MMDDATA		0x0e
 
 #define LANTIQ_MDIO_INIT_WOL		BIT(15)	/* Wake-On-LAN */
+#define LANTIQ_MDIO_INIT_MSRE		BIT(14)
+#define LANTIQ_MDIO_INIT_NPRX		BIT(13)
+#define LANTIQ_MDIO_INIT_NPTX		BIT(12)
 #define LANTIQ_MDIO_INIT_ANE		BIT(11)	/* Auto-Neg error */
 #define LANTIQ_MDIO_INIT_ANC		BIT(10)	/* Auto-Neg complete */
 #define LANTIQ_MDIO_INIT_ADSC		BIT(5)	/* Link auto-downspeed detect */
+#define LANTIQ_MDIO_INIT_MPIPC		BIT(4)
+#define LANTIQ_MDIO_INIT_MDIXC		BIT(3)
 #define LANTIQ_MDIO_INIT_DXMC		BIT(2)	/* Duplex mode change */
 #define LANTIQ_MDIO_INIT_LSPC		BIT(1)	/* Link speed change */
 #define LANTIQ_MDIO_INIT_LSTC		BIT(0)	/* Link state change */
@@ -42,6 +47,121 @@
 					 LANTIQ_MDIO_INIT_ADSC)
 
 #define ADVERTISED_MPD			BIT(10)	/* Multi-port device */
+
+/* LED Configuration */
+#define LANTIQ_MMD_LEDCH			0x01E0
+/* Inverse of SCAN Function */
+#define  LANTIQ_MMD_LEDCH_NACS_NONE		0x0000
+#define  LANTIQ_MMD_LEDCH_NACS_LINK		0x0001
+#define  LANTIQ_MMD_LEDCH_NACS_PDOWN		0x0002
+#define  LANTIQ_MMD_LEDCH_NACS_EEE		0x0003
+#define  LANTIQ_MMD_LEDCH_NACS_ANEG		0x0004
+#define  LANTIQ_MMD_LEDCH_NACS_ABIST		0x0005
+#define  LANTIQ_MMD_LEDCH_NACS_CDIAG		0x0006
+#define  LANTIQ_MMD_LEDCH_NACS_TEST		0x0007
+/* Slow Blink Frequency */
+#define  LANTIQ_MMD_LEDCH_SBF_F02HZ		0x0000
+#define  LANTIQ_MMD_LEDCH_SBF_F04HZ		0x0010
+#define  LANTIQ_MMD_LEDCH_SBF_F08HZ		0x0020
+#define  LANTIQ_MMD_LEDCH_SBF_F16HZ		0x0030
+/* Fast Blink Frequency */
+#define  LANTIQ_MMD_LEDCH_FBF_F02HZ		0x0000
+#define  LANTIQ_MMD_LEDCH_FBF_F04HZ		0x0040
+#define  LANTIQ_MMD_LEDCH_FBF_F08HZ		0x0080
+#define  LANTIQ_MMD_LEDCH_FBF_F16HZ		0x00C0
+/* LED Configuration */
+#define LANTIQ_MMD_LEDCL			0x01E1
+/* Complex Blinking Configuration */
+#define  LANTIQ_MMD_LEDCH_CBLINK_NONE		0x0000
+#define  LANTIQ_MMD_LEDCH_CBLINK_LINK		0x0001
+#define  LANTIQ_MMD_LEDCH_CBLINK_PDOWN		0x0002
+#define  LANTIQ_MMD_LEDCH_CBLINK_EEE		0x0003
+#define  LANTIQ_MMD_LEDCH_CBLINK_ANEG		0x0004
+#define  LANTIQ_MMD_LEDCH_CBLINK_ABIST		0x0005
+#define  LANTIQ_MMD_LEDCH_CBLINK_CDIAG		0x0006
+#define  LANTIQ_MMD_LEDCH_CBLINK_TEST		0x0007
+/* Complex SCAN Configuration */
+#define  LANTIQ_MMD_LEDCH_SCAN_NONE		0x0000
+#define  LANTIQ_MMD_LEDCH_SCAN_LINK		0x0010
+#define  LANTIQ_MMD_LEDCH_SCAN_PDOWN		0x0020
+#define  LANTIQ_MMD_LEDCH_SCAN_EEE		0x0030
+#define  LANTIQ_MMD_LEDCH_SCAN_ANEG		0x0040
+#define  LANTIQ_MMD_LEDCH_SCAN_ABIST		0x0050
+#define  LANTIQ_MMD_LEDCH_SCAN_CDIAG		0x0060
+#define  LANTIQ_MMD_LEDCH_SCAN_TEST		0x0070
+/* Configuration for LED Pin x */
+#define LANTIQ_MMD_LED0H			0x01E2
+/* Fast Blinking Configuration */
+#define  LANTIQ_MMD_LEDxH_BLINKF_MASK		0x000F
+#define  LANTIQ_MMD_LEDxH_BLINKF_NONE		0x0000
+#define  LANTIQ_MMD_LEDxH_BLINKF_LINK10		0x0001
+#define  LANTIQ_MMD_LEDxH_BLINKF_LINK100	0x0002
+#define  LANTIQ_MMD_LEDxH_BLINKF_LINK10X	0x0003
+#define  LANTIQ_MMD_LEDxH_BLINKF_LINK1000	0x0004
+#define  LANTIQ_MMD_LEDxH_BLINKF_LINK10_0	0x0005
+#define  LANTIQ_MMD_LEDxH_BLINKF_LINK100X	0x0006
+#define  LANTIQ_MMD_LEDxH_BLINKF_LINK10XX	0x0007
+#define  LANTIQ_MMD_LEDxH_BLINKF_PDOWN		0x0008
+#define  LANTIQ_MMD_LEDxH_BLINKF_EEE		0x0009
+#define  LANTIQ_MMD_LEDxH_BLINKF_ANEG		0x000A
+#define  LANTIQ_MMD_LEDxH_BLINKF_ABIST		0x000B
+#define  LANTIQ_MMD_LEDxH_BLINKF_CDIAG		0x000C
+/* Constant On Configuration */
+#define  LANTIQ_MMD_LEDxH_CON_MASK		0x00F0
+#define  LANTIQ_MMD_LEDxH_CON_NONE		0x0000
+#define  LANTIQ_MMD_LEDxH_CON_LINK10		0x0010
+#define  LANTIQ_MMD_LEDxH_CON_LINK100		0x0020
+#define  LANTIQ_MMD_LEDxH_CON_LINK10X		0x0030
+#define  LANTIQ_MMD_LEDxH_CON_LINK1000		0x0040
+#define  LANTIQ_MMD_LEDxH_CON_LINK10_0		0x0050
+#define  LANTIQ_MMD_LEDxH_CON_LINK100X		0x0060
+#define  LANTIQ_MMD_LEDxH_CON_LINK10XX		0x0070
+#define  LANTIQ_MMD_LEDxH_CON_PDOWN		0x0080
+#define  LANTIQ_MMD_LEDxH_CON_EEE		0x0090
+#define  LANTIQ_MMD_LEDxH_CON_ANEG		0x00A0
+#define  LANTIQ_MMD_LEDxH_CON_ABIST		0x00B0
+#define  LANTIQ_MMD_LEDxH_CON_CDIAG		0x00C0
+#define  LANTIQ_MMD_LEDxH_CON_COPPER		0x00D0
+#define  LANTIQ_MMD_LEDxH_CON_FIBER		0x00E0
+/* Configuration for LED Pin x */
+#define LANTIQ_MMD_LED0L			0x01E3
+/* Pulsing Configuration */
+#define  LANTIQ_MMD_LEDxL_PULSE_MASK		0x000F
+#define  LANTIQ_MMD_LEDxL_PULSE_NONE		0x0000
+#define  LANTIQ_MMD_LEDxL_PULSE_TXACT		0x0001
+#define  LANTIQ_MMD_LEDxL_PULSE_RXACT		0x0002
+#define  LANTIQ_MMD_LEDxL_PULSE_COL		0x0004
+/* Slow Blinking Configuration */
+#define  LANTIQ_MMD_LEDxL_BLINKS_MASK		0x00F0
+#define  LANTIQ_MMD_LEDxL_BLINKS_NONE		0x0000
+#define  LANTIQ_MMD_LEDxL_BLINKS_LINK10		0x0010
+#define  LANTIQ_MMD_LEDxL_BLINKS_LINK100	0x0020
+#define  LANTIQ_MMD_LEDxL_BLINKS_LINK10X	0x0030
+#define  LANTIQ_MMD_LEDxL_BLINKS_LINK1000	0x0040
+#define  LANTIQ_MMD_LEDxL_BLINKS_LINK10_0	0x0050
+#define  LANTIQ_MMD_LEDxL_BLINKS_LINK100X	0x0060
+#define  LANTIQ_MMD_LEDxL_BLINKS_LINK10XX	0x0070
+#define  LANTIQ_MMD_LEDxL_BLINKS_PDOWN		0x0080
+#define  LANTIQ_MMD_LEDxL_BLINKS_EEE		0x0090
+#define  LANTIQ_MMD_LEDxL_BLINKS_ANEG		0x00A0
+#define  LANTIQ_MMD_LEDxL_BLINKS_ABIST		0x00B0
+#define  LANTIQ_MMD_LEDxL_BLINKS_CDIAG		0x00C0
+#define LANTIQ_MMD_LED1H			0x01E4
+#define LANTIQ_MMD_LED1L			0x01E5
+#define LANTIQ_MMD_LED2H			0x01E6
+#define LANTIQ_MMD_LED2L			0x01E7
+#define LANTIQ_MMD_LED3H			0x01E8
+#define LANTIQ_MMD_LED3L			0x01E9
+
+#define PHY_ID_PHY11G_1_3			0x030260D1
+#define PHY_ID_PHY22F_1_3			0x030260E1
+#define PHY_ID_PHY11G_1_4			0xD565A400
+#define PHY_ID_PHY22F_1_4			0xD565A410
+#define PHY_ID_PHY11G_1_5			0xD565A401
+#define PHY_ID_PHY22F_1_5			0xD565A411
+#define PHY_ID_PHY11G_VR9			0xD565A409
+#define PHY_ID_PHY22F_VR9			0xD565A419
+
 
 #define MMD_DEVAD		0x1f
 #define MMD_ACTYPE_SHIFT	14
@@ -304,9 +424,9 @@ static int lantiq_gphy_config_intr(struct phy_device *phydev)
 
 static struct phy_driver lantiq_gphy[] = {
 	{
-		.phy_id		= 0xd565a400,
+		.phy_id		= PHY_ID_PHY11G_1_4,
 		.phy_id_mask	= 0xfffffffe,
-		.name		= "Lantiq XWAY PEF7071",
+		.name		= "Lantiq XWAY PHY11G (PEF 7071/PEF 7072) v1.4",
 		.features	= (PHY_GBIT_FEATURES | SUPPORTED_Pause),
 		.flags		= PHY_HAS_MAGICANEG, /*PHY_HAS_INTERRUPT,*/
 		.config_init	= lantiq_gphy_config_init,
@@ -343,9 +463,9 @@ static struct phy_driver lantiq_gphy[] = {
 		.config_intr	= lantiq_gphy_config_intr,
 		.driver		= { .owner = THIS_MODULE },
 	}, {
-		.phy_id		= 0xd565a401,
+		.phy_id		= PHY_ID_PHY11G_1_5,
 		.phy_id_mask	= 0xffffffff,
-		.name		= "Lantiq XWAY VR9 GPHY 11G v1.5",
+		.name		= "Lantiq XWAY PHY11G (PEF 7071/PEF 7072) v1.5 / v1.6",
 		.features	= (PHY_GBIT_FEATURES | SUPPORTED_Pause),
 		.flags		= 0, /*PHY_HAS_INTERRUPT,*/
 		.config_init	= lantiq_gphy_config_init,

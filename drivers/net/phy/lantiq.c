@@ -1,48 +1,47 @@
 /*
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation; either version 2 of the License, or
- *   (at your option) any later version.
+ * Copyright (C) 2012 Daniel Schwierzeck <daniel.schwierzeck@xxxxxxxxxxxxxx>
+ * Copyright (C) 2016 Hauke Mehrtens <hauke@xxxxxxxxxx>
  *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details.
+ * PHY MDIO register interface:
+ * Copyright (C) 2013 Ales Bardorfer <ales.bardorfer@redpitaya.com>
  *
- *   You should have received a copy of the GNU General Public License
- *   along with this program; if not, write to the Free Software
- *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
+ * LED blinking configuration:
+ * Copyright (C) 2013 Tomaz Beltram <tomaz.beltram@i-tech.si>
  *
- *   Copyright (C) 2012 Daniel Schwierzeck <daniel.schwierzeck@googlemail.com>
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
- *   PHY MDIO register interface:
- *   Copyright (C) 2013 Ales Bardorfer <ales.bardorfer@redpitaya.com>
- *
- *   LED blinking configuration:
- *   Copyright (C) 2013 Tomaz Beltram <tomaz.beltram@i-tech.si>
- *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  */
 
+#include <linux/mdio.h>
 #include <linux/module.h>
 #include <linux/phy.h>
+#include <linux/of.h>
 #include <linux/sysfs.h>
+
+#define LANTIQ_MDIO_IMASK		0x19	/* interrupt mask */
+#define LANTIQ_MDIO_ISTAT		0x1A	/* interrupt status */
 
 #define MII_MMDCTRL		0x0d
 #define MII_MMDDATA		0x0e
 
-#define MII_VR9_11G_IMASK	0x19	/* interrupt mask */
-#define MII_VR9_11G_ISTAT	0x1a	/* interrupt status */
+#define LANTIQ_MDIO_INIT_WOL		BIT(15)	/* Wake-On-LAN */
+#define LANTIQ_MDIO_INIT_ANE		BIT(11)	/* Auto-Neg error */
+#define LANTIQ_MDIO_INIT_ANC		BIT(10)	/* Auto-Neg complete */
+#define LANTIQ_MDIO_INIT_ADSC		BIT(5)	/* Link auto-downspeed detect */
+#define LANTIQ_MDIO_INIT_DXMC		BIT(2)	/* Duplex mode change */
+#define LANTIQ_MDIO_INIT_LSPC		BIT(1)	/* Link speed change */
+#define LANTIQ_MDIO_INIT_LSTC		BIT(0)	/* Link state change */
+#define LANTIQ_MDIO_INIT_MASK		(LANTIQ_MDIO_INIT_LSTC | \
+					 LANTIQ_MDIO_INIT_ADSC)
 
-#define INT_VR9_11G_WOL		BIT(15)	/* Wake-On-LAN */
-#define INT_VR9_11G_ANE		BIT(11)	/* Auto-Neg error */
-#define INT_VR9_11G_ANC		BIT(10)	/* Auto-Neg complete */
-#define INT_VR9_11G_ADSC	BIT(5)	/* Link auto-downspeed detect */
-#define INT_VR9_11G_DXMC	BIT(2)	/* Duplex mode change */
-#define INT_VR9_11G_LSPC	BIT(1)	/* Link speed change */
-#define INT_VR9_11G_LSTC	BIT(0)	/* Link state change */
-#define INT_VR9_11G_MASK	(INT_VR9_11G_LSTC | INT_VR9_11G_ADSC)
-
-#define ADVERTISED_MPD		BIT(10)	/* Multi-port device */
+#define ADVERTISED_MPD			BIT(10)	/* Multi-port device */
 
 #define MMD_DEVAD		0x1f
 #define MMD_ACTYPE_SHIFT	14
@@ -176,7 +175,7 @@ static ssize_t set_mdio_val_attr(struct device *dev,
 	return count;
 }
 
-static __maybe_unused int vr9_gphy_mmd_read(struct phy_device *phydev,
+static __maybe_unused int lantiq_gphy_mmd_read(struct phy_device *phydev,
 						u16 regnum)
 {
 	phy_write(phydev, MII_MMDCTRL, MMD_ACTYPE_ADDRESS | MMD_DEVAD);
@@ -186,7 +185,7 @@ static __maybe_unused int vr9_gphy_mmd_read(struct phy_device *phydev,
 	return phy_read(phydev, MII_MMDDATA);
 }
 
-static __maybe_unused int vr9_gphy_mmd_write(struct phy_device *phydev,
+static __maybe_unused int lantiq_gphy_mmd_write(struct phy_device *phydev,
 						u16 regnum, u16 val)
 {
 	phy_write(phydev, MII_MMDCTRL, MMD_ACTYPE_ADDRESS | MMD_DEVAD);
@@ -197,30 +196,30 @@ static __maybe_unused int vr9_gphy_mmd_write(struct phy_device *phydev,
 	return 0;
 }
 
-static int vr9_gphy_config_init(struct phy_device *phydev)
+static int lantiq_gphy_config_init(struct phy_device *phydev)
 {
 	int err;
 
 	dev_dbg(&phydev->dev, "%s\n", __func__);
 
         /* Set LED0 blinking on rx/tx. */
-        vr9_gphy_mmd_write(phydev, INT_LED0H, 0);
-        vr9_gphy_mmd_write(phydev, INT_LED0L,
+        lantiq_gphy_mmd_write(phydev, INT_LED0H, 0);
+        lantiq_gphy_mmd_write(phydev, INT_LED0L,
                  INT_LED_RX | INT_LED_TX);
 
         /* Set LED1 binking on link speed: slow=10M, fast=100M, on=1G. */
-        vr9_gphy_mmd_write(phydev, INT_LED1H,
+        lantiq_gphy_mmd_write(phydev, INT_LED1H,
                  INT_LED_LINK1000 << 4 | INT_LED_LINK100);
-        vr9_gphy_mmd_write(phydev, INT_LED1L,
+        lantiq_gphy_mmd_write(phydev, INT_LED1L,
                  INT_LED_LINK10 << 4);
 
 	/* Mask all interrupts */
-	err = phy_write(phydev, MII_VR9_11G_IMASK, 0);
+	err = phy_write(phydev, LANTIQ_MDIO_IMASK, 0);
 	if (err)
 		return err;
 
 	/* Clear all pending interrupts */
-	phy_read(phydev, MII_VR9_11G_ISTAT);
+	phy_read(phydev, LANTIQ_MDIO_ISTAT);
 
         /* Set SGMII RX & TX timing skew to 2 ns & 2.5 ns respectively. */
         /* Set MII power supply to 2V5. */
@@ -249,11 +248,12 @@ static int vr9_gphy_config_init(struct phy_device *phydev)
 	return 0;
 }
 
-static int vr9_gphy_config_aneg(struct phy_device *phydev)
+static int lantiq_gphy14_config_aneg(struct phy_device *phydev)
 {
 	int reg, err;
 
-	/* Advertise as multi-port device */
+	/* Advertise as multi-port device, see IEEE802.3-2002 40.5.1.1 */
+	/* This is a workaround for an errata in rev < 1.5 devices */
 	reg = phy_read(phydev, MII_CTRL1000);
 	reg |= ADVERTISED_MPD;
 	err = phy_write(phydev, MII_CTRL1000, reg);
@@ -263,11 +263,11 @@ static int vr9_gphy_config_aneg(struct phy_device *phydev)
 	return genphy_config_aneg(phydev);
 }
 
-static int vr9_gphy_ack_interrupt(struct phy_device *phydev)
+static int lantiq_gphy_ack_interrupt(struct phy_device *phydev)
 {
 	int reg;
 
-	/*
+	/**
 	 * Possible IRQ numbers:
 	 * - IM3_IRL18 for GPHY0
 	 * - IM3_IRL17 for GPHY1
@@ -276,46 +276,45 @@ static int vr9_gphy_ack_interrupt(struct phy_device *phydev)
 	 * each other. Sometimes the two lines are driven at the same time
 	 * if only one GPHY core raises the interrupt.
 	 */
-
-	reg = phy_read(phydev, MII_VR9_11G_ISTAT);
+	reg = phy_read(phydev, LANTIQ_MDIO_ISTAT);
 
 	return (reg < 0) ? reg : 0;
 }
 
-static int vr9_gphy_did_interrupt(struct phy_device *phydev)
+static int lantiq_gphy_did_interrupt(struct phy_device *phydev)
 {
 	int reg;
 
-	reg = phy_read(phydev, MII_VR9_11G_ISTAT);
+	reg = phy_read(phydev, LANTIQ_MDIO_ISTAT);
 
 	return reg > 0;
 }
 
-static int vr9_gphy_config_intr(struct phy_device *phydev)
+static int lantiq_gphy_config_intr(struct phy_device *phydev)
 {
 	int err;
 
 	if (phydev->interrupts == PHY_INTERRUPT_ENABLED)
-		err = phy_write(phydev, MII_VR9_11G_IMASK, INT_VR9_11G_MASK);
+		err = phy_write(phydev, LANTIQ_MDIO_IMASK, LANTIQ_MDIO_INIT_MASK);
 	else
-		err = phy_write(phydev, MII_VR9_11G_IMASK, 0);
+		err = phy_write(phydev, LANTIQ_MDIO_IMASK, 0);
 
 	return err;
 }
 
-static struct phy_driver lantiq_phy[] = {
+static struct phy_driver lantiq_gphy[] = {
 	{
 		.phy_id		= 0xd565a400,
 		.phy_id_mask	= 0xfffffffe,
 		.name		= "Lantiq XWAY PEF7071",
 		.features	= (PHY_GBIT_FEATURES | SUPPORTED_Pause),
 		.flags		= PHY_HAS_MAGICANEG, /*PHY_HAS_INTERRUPT,*/
-		.config_init	= vr9_gphy_config_init,
-		.config_aneg	= vr9_gphy_config_aneg,
+		.config_init	= lantiq_gphy_config_init,
+		.config_aneg	= lantiq_gphy14_config_aneg,
 		.read_status	= genphy_read_status,
-		.ack_interrupt	= vr9_gphy_ack_interrupt,
-		.did_interrupt	= vr9_gphy_did_interrupt,
-		.config_intr	= vr9_gphy_config_intr,
+		.ack_interrupt	= lantiq_gphy_ack_interrupt,
+		.did_interrupt	= lantiq_gphy_did_interrupt,
+		.config_intr	= lantiq_gphy_config_intr,
 		.driver		= { .owner = THIS_MODULE },
 	}, {
 		.phy_id		= 0x030260D0,
@@ -323,12 +322,12 @@ static struct phy_driver lantiq_phy[] = {
 		.name		= "Lantiq XWAY VR9 GPHY 11G v1.3",
 		.features	= (PHY_GBIT_FEATURES | SUPPORTED_Pause),
 		.flags		= 0, /*PHY_HAS_INTERRUPT,*/
-		.config_init	= vr9_gphy_config_init,
-		.config_aneg	= vr9_gphy_config_aneg,
+		.config_init	= lantiq_gphy_config_init,
+		.config_aneg	= lantiq_gphy14_config_aneg,
 		.read_status	= genphy_read_status,
-		.ack_interrupt	= vr9_gphy_ack_interrupt,
-		.did_interrupt	= vr9_gphy_did_interrupt,
-		.config_intr	= vr9_gphy_config_intr,
+		.ack_interrupt	= lantiq_gphy_ack_interrupt,
+		.did_interrupt	= lantiq_gphy_did_interrupt,
+		.config_intr	= lantiq_gphy_config_intr,
 		.driver		= { .owner = THIS_MODULE },
 	}, {
 		.phy_id		= 0xd565a408,
@@ -336,12 +335,12 @@ static struct phy_driver lantiq_phy[] = {
 		.name		= "Lantiq XWAY VR9 GPHY 11G v1.4",
 		.features	= (PHY_GBIT_FEATURES | SUPPORTED_Pause),
 		.flags		= 0, /*PHY_HAS_INTERRUPT,*/
-		.config_init	= vr9_gphy_config_init,
-		.config_aneg	= vr9_gphy_config_aneg,
+		.config_init	= lantiq_gphy_config_init,
+		.config_aneg	= lantiq_gphy14_config_aneg,
 		.read_status	= genphy_read_status,
-		.ack_interrupt	= vr9_gphy_ack_interrupt,
-		.did_interrupt	= vr9_gphy_did_interrupt,
-		.config_intr	= vr9_gphy_config_intr,
+		.ack_interrupt	= lantiq_gphy_ack_interrupt,
+		.did_interrupt	= lantiq_gphy_did_interrupt,
+		.config_intr	= lantiq_gphy_config_intr,
 		.driver		= { .owner = THIS_MODULE },
 	}, {
 		.phy_id		= 0xd565a401,
@@ -349,12 +348,12 @@ static struct phy_driver lantiq_phy[] = {
 		.name		= "Lantiq XWAY VR9 GPHY 11G v1.5",
 		.features	= (PHY_GBIT_FEATURES | SUPPORTED_Pause),
 		.flags		= 0, /*PHY_HAS_INTERRUPT,*/
-		.config_init	= vr9_gphy_config_init,
-		.config_aneg	= vr9_gphy_config_aneg,
+		.config_init	= lantiq_gphy_config_init,
+		.config_aneg	= lantiq_gphy14_config_aneg,
 		.read_status	= genphy_read_status,
-		.ack_interrupt	= vr9_gphy_ack_interrupt,
-		.did_interrupt	= vr9_gphy_did_interrupt,
-		.config_intr	= vr9_gphy_config_intr,
+		.ack_interrupt	= lantiq_gphy_ack_interrupt,
+		.did_interrupt	= lantiq_gphy_did_interrupt,
+		.config_intr	= lantiq_gphy_config_intr,
 		.driver		= { .owner = THIS_MODULE },
 	}, {
 		.phy_id		= 0xd565a418,
@@ -362,12 +361,12 @@ static struct phy_driver lantiq_phy[] = {
 		.name		= "Lantiq XWAY XRX PHY22F v1.4",
 		.features	= (PHY_BASIC_FEATURES | SUPPORTED_Pause),
 		.flags		= 0, /*PHY_HAS_INTERRUPT,*/
-		.config_init	= vr9_gphy_config_init,
-		.config_aneg	= vr9_gphy_config_aneg,
+		.config_init	= lantiq_gphy_config_init,
+		.config_aneg	= lantiq_gphy14_config_aneg,
 		.read_status	= genphy_read_status,
-		.ack_interrupt	= vr9_gphy_ack_interrupt,
-		.did_interrupt	= vr9_gphy_did_interrupt,
-		.config_intr	= vr9_gphy_config_intr,
+		.ack_interrupt	= lantiq_gphy_ack_interrupt,
+		.did_interrupt	= lantiq_gphy_did_interrupt,
+		.config_intr	= lantiq_gphy_config_intr,
 		.driver		= { .owner = THIS_MODULE },
 	},
 };
@@ -376,10 +375,10 @@ static int __init ltq_phy_init(void)
 {
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(lantiq_phy); i++) {
-		int err = phy_driver_register(&lantiq_phy[i]);
+	for (i = 0; i < ARRAY_SIZE(lantiq_gphy); i++) {
+		int err = phy_driver_register(&lantiq_gphy[i]);
 		if (err)
-			pr_err("lantiq_phy: failed to load %s\n", lantiq_phy[i].name);
+			pr_err("lantiq_gphy: failed to load %s\n", lantiq_gphy[i].name);
 	}
 
 	return 0;
@@ -389,8 +388,8 @@ static void __exit ltq_phy_exit(void)
 {
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(lantiq_phy); i++)
-		phy_driver_unregister(&lantiq_phy[i]);
+	for (i = 0; i < ARRAY_SIZE(lantiq_gphy); i++)
+		phy_driver_unregister(&lantiq_gphy[i]);
 }
 
 module_init(ltq_phy_init);

@@ -46,4 +46,3 @@ obj-$(CONFIG_MICROCHIP_PHY)	+= microchip.o
 obj-$(CONFIG_MDIO_BCM_IPROC)	+= mdio-bcm-iproc.o
 obj-$(CONFIG_XILINX_PHY)	+= xilinx_phy.o
 obj-$(CONFIG_XILINX_GMII2RGMII) += xilinx_gmii2rgmii.o
-obj-$(CONFIG_LANTIQ_PHY)	+= lantiq.o

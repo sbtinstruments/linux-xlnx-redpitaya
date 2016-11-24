@@ -17,7 +17,6 @@
 #include <linux/module.h>
 #include <linux/phy.h>
 #include <linux/of.h>
-#include <dt-bindings/phy/phy-leds.h>
 
 #define LANTIQ_MDIO_IMASK		0x19	/* interrupt mask */
 #define LANTIQ_MDIO_ISTAT		0x1A	/* interrupt status */
@@ -153,158 +152,11 @@
 #define PHY_ID_PHY11G_VR9			0xD565A409
 #define PHY_ID_PHY22F_VR9			0xD565A419
 
-static void lantiq_gphy_config_led(struct phy_device *phydev,
-				   struct device_node *led_np)
-{
-	const __be32 *addr, *blink_fast_p, *const_on_p, *pules_p, *blink_slow_p;
-	u32 num, blink_fast, const_on, pules, blink_slow;
-	u32 ledxl;
-	u32 ledxh;
-
-	addr = of_get_property(led_np, "reg", NULL);
-	if (!addr)
-		return;
-	num = be32_to_cpu(*addr);
-
-	if (num < 0 || num > 3)
-		return;
-
-	ledxh = LANTIQ_MMD_LEDxH_BLINKF_NONE | LANTIQ_MMD_LEDxH_CON_LINK10XX;
-	blink_fast_p = of_get_property(led_np, "led-blink-fast", NULL);
-	if (blink_fast_p) {
-		ledxh &= ~LANTIQ_MMD_LEDxH_BLINKF_MASK;
-		blink_fast = be32_to_cpu(*blink_fast_p);
-		if ((blink_fast & PHY_LED_LINK10) &&
-		    (blink_fast & PHY_LED_LINK100) &&
-		    (blink_fast & PHY_LED_LINK1000)) {
-			ledxh |= LANTIQ_MMD_LEDxH_BLINKF_LINK10XX;
-		} else if ((blink_fast & PHY_LED_LINK10) &&
-			   (blink_fast & PHY_LED_LINK1000)) {
-			ledxh |= LANTIQ_MMD_LEDxH_BLINKF_LINK10_0;
-		} else if ((blink_fast & PHY_LED_LINK10) &&
-			   (blink_fast & PHY_LED_LINK100)) {
-			ledxh |= LANTIQ_MMD_LEDxH_BLINKF_LINK10X;
-		} else if ((blink_fast & PHY_LED_LINK100) &&
-			   (blink_fast & PHY_LED_LINK1000)) {
-			ledxh |= LANTIQ_MMD_LEDxH_BLINKF_LINK100X;
-		} else if (blink_fast & PHY_LED_LINK10) {
-			ledxh |= LANTIQ_MMD_LEDxH_BLINKF_LINK10;
-		} else if (blink_fast & PHY_LED_LINK100) {
-			ledxh |= LANTIQ_MMD_LEDxH_BLINKF_LINK100;
-		} else if (blink_fast & PHY_LED_LINK1000) {
-			ledxh |= LANTIQ_MMD_LEDxH_BLINKF_LINK1000;
-		} else if (blink_fast & PHY_LED_PDOWN) {
-			ledxh |= LANTIQ_MMD_LEDxH_BLINKF_PDOWN;
-		} else if (blink_fast & PHY_LED_EEE) {
-			ledxh |= LANTIQ_MMD_LEDxH_BLINKF_EEE;
-		} else if (blink_fast & PHY_LED_ANEG) {
-			ledxh |= LANTIQ_MMD_LEDxH_BLINKF_ANEG;
-		} else if (blink_fast & PHY_LED_ABIST) {
-			ledxh |= LANTIQ_MMD_LEDxH_BLINKF_ABIST;
-		} else if (blink_fast & PHY_LED_CDIAG) {
-			ledxh |= LANTIQ_MMD_LEDxH_BLINKF_CDIAG;
-		}
-	}
-	const_on_p = of_get_property(led_np, "led-const-on", NULL);
-	if (const_on_p) {
-		ledxh &= ~LANTIQ_MMD_LEDxH_CON_MASK;
-		const_on = be32_to_cpu(*const_on_p);
-		if ((const_on & PHY_LED_LINK10) &&
-		    (const_on & PHY_LED_LINK100) &&
-		    (const_on & PHY_LED_LINK1000)) {
-			ledxh |= LANTIQ_MMD_LEDxH_CON_LINK10XX;
-		} else if ((const_on & PHY_LED_LINK10) &&
-			   (const_on & PHY_LED_LINK1000)) {
-			ledxh |= LANTIQ_MMD_LEDxH_CON_LINK10_0;
-		} else if ((const_on & PHY_LED_LINK10) &&
-			   (const_on & PHY_LED_LINK100)) {
-			ledxh |= LANTIQ_MMD_LEDxH_CON_LINK10X;
-		} else if ((const_on & PHY_LED_LINK100) &&
-			   (const_on & PHY_LED_LINK1000)) {
-			ledxh |= LANTIQ_MMD_LEDxH_CON_LINK100X;
-		} else if (const_on & PHY_LED_LINK10) {
-			ledxh |= LANTIQ_MMD_LEDxH_CON_LINK10;
-		} else if (const_on & PHY_LED_LINK100) {
-			ledxh |= LANTIQ_MMD_LEDxH_CON_LINK100;
-		} else if (const_on & PHY_LED_LINK1000) {
-			ledxh |= LANTIQ_MMD_LEDxH_CON_LINK1000;
-		} else if (const_on & PHY_LED_PDOWN) {
-			ledxh |= LANTIQ_MMD_LEDxH_CON_PDOWN;
-		} else if (const_on & PHY_LED_EEE) {
-			ledxh |= LANTIQ_MMD_LEDxH_CON_EEE;
-		} else if (const_on & PHY_LED_ANEG) {
-			ledxh |= LANTIQ_MMD_LEDxH_CON_ANEG;
-		} else if (const_on & PHY_LED_ABIST) {
-			ledxh |= LANTIQ_MMD_LEDxH_CON_ABIST;
-		} else if (const_on & PHY_LED_CDIAG) {
-			ledxh |= LANTIQ_MMD_LEDxH_CON_CDIAG;
-		} else if (const_on & PHY_LED_COPPER) {
-			ledxh |= LANTIQ_MMD_LEDxH_CON_COPPER;
-		} else if (const_on & PHY_LED_FIBER) {
-			ledxh |= LANTIQ_MMD_LEDxH_CON_FIBER;
-		}
-	}
-	phy_write_mmd_indirect(phydev, LANTIQ_MMD_LED0H + (num * 2),
-			       MDIO_MMD_VEND2, ledxh);
-
-	ledxl = LANTIQ_MMD_LEDxL_PULSE_TXACT | LANTIQ_MMD_LEDxL_PULSE_RXACT |
-		LANTIQ_MMD_LEDxL_BLINKS_NONE;
-	pules_p = of_get_property(led_np, "led-pules", NULL);
-	if (pules_p) {
-		ledxl &= ~LANTIQ_MMD_LEDxL_PULSE_MASK;
-		pules = be32_to_cpu(*pules_p);
-		if (pules & PHY_LED_TXACT)
-			ledxl |= LANTIQ_MMD_LEDxL_PULSE_TXACT;
-		if (pules & PHY_LED_RXACT)
-			ledxl |= LANTIQ_MMD_LEDxL_PULSE_RXACT;
-		if (pules & PHY_LED_COL)
-			ledxl |= LANTIQ_MMD_LEDxL_PULSE_COL;
-	}
-	blink_slow_p = of_get_property(led_np, "led-blink-slow", NULL);
-	if (blink_slow_p) {
-		ledxl &= ~LANTIQ_MMD_LEDxL_BLINKS_MASK;
-		blink_slow = be32_to_cpu(*blink_slow_p);
-		if ((blink_slow & PHY_LED_LINK10) &&
-		    (blink_slow & PHY_LED_LINK100) &&
-		    (blink_slow & PHY_LED_LINK1000)) {
-			ledxl |= LANTIQ_MMD_LEDxL_BLINKS_LINK10XX;
-		} else if ((blink_slow & PHY_LED_LINK10) &&
-			   (blink_slow & PHY_LED_LINK1000)) {
-			ledxl |= LANTIQ_MMD_LEDxL_BLINKS_LINK10_0;
-		} else if ((blink_slow & PHY_LED_LINK10) &&
-			   (blink_slow & PHY_LED_LINK100)) {
-			ledxl |= LANTIQ_MMD_LEDxL_BLINKS_LINK10X;
-		} else if ((blink_slow & PHY_LED_LINK100) &&
-			   (blink_slow & PHY_LED_LINK1000)) {
-			ledxl |= LANTIQ_MMD_LEDxL_BLINKS_LINK100X;
-		} else if (blink_slow & PHY_LED_LINK10) {
-			ledxl |= LANTIQ_MMD_LEDxL_BLINKS_LINK10;
-		} else if (blink_slow & PHY_LED_LINK100) {
-			ledxl |= LANTIQ_MMD_LEDxL_BLINKS_LINK100;
-		} else if (blink_slow & PHY_LED_LINK1000) {
-			ledxl |= LANTIQ_MMD_LEDxL_BLINKS_LINK1000;
-		} else if (blink_slow & PHY_LED_PDOWN) {
-			ledxl |= LANTIQ_MMD_LEDxL_BLINKS_PDOWN;
-		} else if (blink_slow & PHY_LED_EEE) {
-			ledxl |= LANTIQ_MMD_LEDxL_BLINKS_EEE;
-		} else if (blink_slow & PHY_LED_ANEG) {
-			ledxl |= LANTIQ_MMD_LEDxL_BLINKS_ANEG;
-		} else if (blink_slow & PHY_LED_ABIST) {
-			ledxl |= LANTIQ_MMD_LEDxL_BLINKS_ABIST;
-		} else if (blink_slow & PHY_LED_CDIAG) {
-			ledxl |= LANTIQ_MMD_LEDxL_BLINKS_CDIAG;
-		}
-	}
-	phy_write_mmd_indirect(phydev, LANTIQ_MMD_LED0L + (num * 2),
-			       MDIO_MMD_VEND2, ledxl);
-}
-
 static int lantiq_gphy_config_init(struct phy_device *phydev)
 {
 	int err;
 	u32 ledxh;
 	u32 ledxl;
-	struct device_node *led_np;
 
 	/* Mask all interrupts */
 	err = phy_write(phydev, LANTIQ_MDIO_IMASK, 0);
@@ -337,10 +189,6 @@ static int lantiq_gphy_config_init(struct phy_device *phydev)
 	phy_write_mmd_indirect(phydev, LANTIQ_MMD_LED1L, MDIO_MMD_VEND2, ledxl);
 	phy_write_mmd_indirect(phydev, LANTIQ_MMD_LED2H, MDIO_MMD_VEND2, ledxh);
 	phy_write_mmd_indirect(phydev, LANTIQ_MMD_LED2L, MDIO_MMD_VEND2, ledxl);
-
-	for_each_child_of_node(phydev->mdio.dev.of_node, led_np)
-		if (of_device_is_compatible(led_np, "phy,led"))
-			lantiq_gphy_config_led(phydev, led_np);
 
 	return 0;
 }

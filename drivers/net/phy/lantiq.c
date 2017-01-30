@@ -1,167 +1,48 @@
 /*
- * Copyright (C) 2012 Daniel Schwierzeck <daniel.schwierzeck@xxxxxxxxxxxxxx>
- * Copyright (C) 2016 Hauke Mehrtens <hauke@xxxxxxxxxx>
+ *   This program is free software; you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation; either version 2 of the License, or
+ *   (at your option) any later version.
  *
- * PHY MDIO register interface:
- * Copyright (C) 2013 Ales Bardorfer <ales.bardorfer@redpitaya.com>
+ *   This program is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
  *
- * LED blinking configuration:
- * Copyright (C) 2013 Tomaz Beltram <tomaz.beltram@i-tech.si>
+ *   You should have received a copy of the GNU General Public License
+ *   along with this program; if not, write to the Free Software
+ *   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307, USA.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ *   Copyright (C) 2012 Daniel Schwierzeck <daniel.schwierzeck@googlemail.com>
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ *   PHY MDIO register interface:
+ *   Copyright (C) 2013 Ales Bardorfer <ales.bardorfer@redpitaya.com>
+ *
+ *   LED blinking configuration:
+ *   Copyright (C) 2013 Tomaz Beltram <tomaz.beltram@i-tech.si>
+ *
  */
 
-#include <linux/mdio.h>
 #include <linux/module.h>
 #include <linux/phy.h>
-#include <linux/of.h>
 #include <linux/sysfs.h>
-
-#define LANTIQ_MDIO_IMASK		0x19	/* interrupt mask */
-#define LANTIQ_MDIO_ISTAT		0x1A	/* interrupt status */
 
 #define MII_MMDCTRL		0x0d
 #define MII_MMDDATA		0x0e
 
-#define LANTIQ_MDIO_INIT_WOL		BIT(15)	/* Wake-On-LAN */
-#define LANTIQ_MDIO_INIT_MSRE		BIT(14)
-#define LANTIQ_MDIO_INIT_NPRX		BIT(13)
-#define LANTIQ_MDIO_INIT_NPTX		BIT(12)
-#define LANTIQ_MDIO_INIT_ANE		BIT(11)	/* Auto-Neg error */
-#define LANTIQ_MDIO_INIT_ANC		BIT(10)	/* Auto-Neg complete */
-#define LANTIQ_MDIO_INIT_ADSC		BIT(5)	/* Link auto-downspeed detect */
-#define LANTIQ_MDIO_INIT_MPIPC		BIT(4)
-#define LANTIQ_MDIO_INIT_MDIXC		BIT(3)
-#define LANTIQ_MDIO_INIT_DXMC		BIT(2)	/* Duplex mode change */
-#define LANTIQ_MDIO_INIT_LSPC		BIT(1)	/* Link speed change */
-#define LANTIQ_MDIO_INIT_LSTC		BIT(0)	/* Link state change */
-#define LANTIQ_MDIO_INIT_MASK		(LANTIQ_MDIO_INIT_LSTC | \
-					 LANTIQ_MDIO_INIT_ADSC)
+#define MII_VR9_11G_IMASK	0x19	/* interrupt mask */
+#define MII_VR9_11G_ISTAT	0x1a	/* interrupt status */
 
-#define ADVERTISED_MPD			BIT(10)	/* Multi-port device */
+#define INT_VR9_11G_WOL		BIT(15)	/* Wake-On-LAN */
+#define INT_VR9_11G_ANE		BIT(11)	/* Auto-Neg error */
+#define INT_VR9_11G_ANC		BIT(10)	/* Auto-Neg complete */
+#define INT_VR9_11G_ADSC	BIT(5)	/* Link auto-downspeed detect */
+#define INT_VR9_11G_DXMC	BIT(2)	/* Duplex mode change */
+#define INT_VR9_11G_LSPC	BIT(1)	/* Link speed change */
+#define INT_VR9_11G_LSTC	BIT(0)	/* Link state change */
+#define INT_VR9_11G_MASK	(INT_VR9_11G_LSTC | INT_VR9_11G_ADSC)
 
-/* LED Configuration */
-#define LANTIQ_MMD_LEDCH			0x01E0
-/* Inverse of SCAN Function */
-#define  LANTIQ_MMD_LEDCH_NACS_NONE		0x0000
-#define  LANTIQ_MMD_LEDCH_NACS_LINK		0x0001
-#define  LANTIQ_MMD_LEDCH_NACS_PDOWN		0x0002
-#define  LANTIQ_MMD_LEDCH_NACS_EEE		0x0003
-#define  LANTIQ_MMD_LEDCH_NACS_ANEG		0x0004
-#define  LANTIQ_MMD_LEDCH_NACS_ABIST		0x0005
-#define  LANTIQ_MMD_LEDCH_NACS_CDIAG		0x0006
-#define  LANTIQ_MMD_LEDCH_NACS_TEST		0x0007
-/* Slow Blink Frequency */
-#define  LANTIQ_MMD_LEDCH_SBF_F02HZ		0x0000
-#define  LANTIQ_MMD_LEDCH_SBF_F04HZ		0x0010
-#define  LANTIQ_MMD_LEDCH_SBF_F08HZ		0x0020
-#define  LANTIQ_MMD_LEDCH_SBF_F16HZ		0x0030
-/* Fast Blink Frequency */
-#define  LANTIQ_MMD_LEDCH_FBF_F02HZ		0x0000
-#define  LANTIQ_MMD_LEDCH_FBF_F04HZ		0x0040
-#define  LANTIQ_MMD_LEDCH_FBF_F08HZ		0x0080
-#define  LANTIQ_MMD_LEDCH_FBF_F16HZ		0x00C0
-/* LED Configuration */
-#define LANTIQ_MMD_LEDCL			0x01E1
-/* Complex Blinking Configuration */
-#define  LANTIQ_MMD_LEDCH_CBLINK_NONE		0x0000
-#define  LANTIQ_MMD_LEDCH_CBLINK_LINK		0x0001
-#define  LANTIQ_MMD_LEDCH_CBLINK_PDOWN		0x0002
-#define  LANTIQ_MMD_LEDCH_CBLINK_EEE		0x0003
-#define  LANTIQ_MMD_LEDCH_CBLINK_ANEG		0x0004
-#define  LANTIQ_MMD_LEDCH_CBLINK_ABIST		0x0005
-#define  LANTIQ_MMD_LEDCH_CBLINK_CDIAG		0x0006
-#define  LANTIQ_MMD_LEDCH_CBLINK_TEST		0x0007
-/* Complex SCAN Configuration */
-#define  LANTIQ_MMD_LEDCH_SCAN_NONE		0x0000
-#define  LANTIQ_MMD_LEDCH_SCAN_LINK		0x0010
-#define  LANTIQ_MMD_LEDCH_SCAN_PDOWN		0x0020
-#define  LANTIQ_MMD_LEDCH_SCAN_EEE		0x0030
-#define  LANTIQ_MMD_LEDCH_SCAN_ANEG		0x0040
-#define  LANTIQ_MMD_LEDCH_SCAN_ABIST		0x0050
-#define  LANTIQ_MMD_LEDCH_SCAN_CDIAG		0x0060
-#define  LANTIQ_MMD_LEDCH_SCAN_TEST		0x0070
-/* Configuration for LED Pin x */
-#define LANTIQ_MMD_LED0H			0x01E2
-/* Fast Blinking Configuration */
-#define  LANTIQ_MMD_LEDxH_BLINKF_MASK		0x000F
-#define  LANTIQ_MMD_LEDxH_BLINKF_NONE		0x0000
-#define  LANTIQ_MMD_LEDxH_BLINKF_LINK10		0x0001
-#define  LANTIQ_MMD_LEDxH_BLINKF_LINK100	0x0002
-#define  LANTIQ_MMD_LEDxH_BLINKF_LINK10X	0x0003
-#define  LANTIQ_MMD_LEDxH_BLINKF_LINK1000	0x0004
-#define  LANTIQ_MMD_LEDxH_BLINKF_LINK10_0	0x0005
-#define  LANTIQ_MMD_LEDxH_BLINKF_LINK100X	0x0006
-#define  LANTIQ_MMD_LEDxH_BLINKF_LINK10XX	0x0007
-#define  LANTIQ_MMD_LEDxH_BLINKF_PDOWN		0x0008
-#define  LANTIQ_MMD_LEDxH_BLINKF_EEE		0x0009
-#define  LANTIQ_MMD_LEDxH_BLINKF_ANEG		0x000A
-#define  LANTIQ_MMD_LEDxH_BLINKF_ABIST		0x000B
-#define  LANTIQ_MMD_LEDxH_BLINKF_CDIAG		0x000C
-/* Constant On Configuration */
-#define  LANTIQ_MMD_LEDxH_CON_MASK		0x00F0
-#define  LANTIQ_MMD_LEDxH_CON_NONE		0x0000
-#define  LANTIQ_MMD_LEDxH_CON_LINK10		0x0010
-#define  LANTIQ_MMD_LEDxH_CON_LINK100		0x0020
-#define  LANTIQ_MMD_LEDxH_CON_LINK10X		0x0030
-#define  LANTIQ_MMD_LEDxH_CON_LINK1000		0x0040
-#define  LANTIQ_MMD_LEDxH_CON_LINK10_0		0x0050
-#define  LANTIQ_MMD_LEDxH_CON_LINK100X		0x0060
-#define  LANTIQ_MMD_LEDxH_CON_LINK10XX		0x0070
-#define  LANTIQ_MMD_LEDxH_CON_PDOWN		0x0080
-#define  LANTIQ_MMD_LEDxH_CON_EEE		0x0090
-#define  LANTIQ_MMD_LEDxH_CON_ANEG		0x00A0
-#define  LANTIQ_MMD_LEDxH_CON_ABIST		0x00B0
-#define  LANTIQ_MMD_LEDxH_CON_CDIAG		0x00C0
-#define  LANTIQ_MMD_LEDxH_CON_COPPER		0x00D0
-#define  LANTIQ_MMD_LEDxH_CON_FIBER		0x00E0
-/* Configuration for LED Pin x */
-#define LANTIQ_MMD_LED0L			0x01E3
-/* Pulsing Configuration */
-#define  LANTIQ_MMD_LEDxL_PULSE_MASK		0x000F
-#define  LANTIQ_MMD_LEDxL_PULSE_NONE		0x0000
-#define  LANTIQ_MMD_LEDxL_PULSE_TXACT		0x0001
-#define  LANTIQ_MMD_LEDxL_PULSE_RXACT		0x0002
-#define  LANTIQ_MMD_LEDxL_PULSE_COL		0x0004
-/* Slow Blinking Configuration */
-#define  LANTIQ_MMD_LEDxL_BLINKS_MASK		0x00F0
-#define  LANTIQ_MMD_LEDxL_BLINKS_NONE		0x0000
-#define  LANTIQ_MMD_LEDxL_BLINKS_LINK10		0x0010
-#define  LANTIQ_MMD_LEDxL_BLINKS_LINK100	0x0020
-#define  LANTIQ_MMD_LEDxL_BLINKS_LINK10X	0x0030
-#define  LANTIQ_MMD_LEDxL_BLINKS_LINK1000	0x0040
-#define  LANTIQ_MMD_LEDxL_BLINKS_LINK10_0	0x0050
-#define  LANTIQ_MMD_LEDxL_BLINKS_LINK100X	0x0060
-#define  LANTIQ_MMD_LEDxL_BLINKS_LINK10XX	0x0070
-#define  LANTIQ_MMD_LEDxL_BLINKS_PDOWN		0x0080
-#define  LANTIQ_MMD_LEDxL_BLINKS_EEE		0x0090
-#define  LANTIQ_MMD_LEDxL_BLINKS_ANEG		0x00A0
-#define  LANTIQ_MMD_LEDxL_BLINKS_ABIST		0x00B0
-#define  LANTIQ_MMD_LEDxL_BLINKS_CDIAG		0x00C0
-#define LANTIQ_MMD_LED1H			0x01E4
-#define LANTIQ_MMD_LED1L			0x01E5
-#define LANTIQ_MMD_LED2H			0x01E6
-#define LANTIQ_MMD_LED2L			0x01E7
-#define LANTIQ_MMD_LED3H			0x01E8
-#define LANTIQ_MMD_LED3L			0x01E9
-
-#define PHY_ID_PHY11G_1_3			0x030260D1
-#define PHY_ID_PHY22F_1_3			0x030260E1
-#define PHY_ID_PHY11G_1_4			0xD565A400
-#define PHY_ID_PHY22F_1_4			0xD565A410
-#define PHY_ID_PHY11G_1_5			0xD565A401
-#define PHY_ID_PHY22F_1_5			0xD565A411
-#define PHY_ID_PHY11G_VR9			0xD565A409
-#define PHY_ID_PHY22F_VR9			0xD565A419
-
+#define ADVERTISED_MPD		BIT(10)	/* Multi-port device */
 
 #define MMD_DEVAD		0x1f
 #define MMD_ACTYPE_SHIFT	14
@@ -295,7 +176,7 @@ static ssize_t set_mdio_val_attr(struct device *dev,
 	return count;
 }
 
-static __maybe_unused int lantiq_gphy_mmd_read(struct phy_device *phydev,
+static __maybe_unused int vr9_gphy_mmd_read(struct phy_device *phydev,
 						u16 regnum)
 {
 	phy_write(phydev, MII_MMDCTRL, MMD_ACTYPE_ADDRESS | MMD_DEVAD);
@@ -305,7 +186,7 @@ static __maybe_unused int lantiq_gphy_mmd_read(struct phy_device *phydev,
 	return phy_read(phydev, MII_MMDDATA);
 }
 
-static __maybe_unused int lantiq_gphy_mmd_write(struct phy_device *phydev,
+static __maybe_unused int vr9_gphy_mmd_write(struct phy_device *phydev,
 						u16 regnum, u16 val)
 {
 	phy_write(phydev, MII_MMDCTRL, MMD_ACTYPE_ADDRESS | MMD_DEVAD);
@@ -316,30 +197,30 @@ static __maybe_unused int lantiq_gphy_mmd_write(struct phy_device *phydev,
 	return 0;
 }
 
-static int lantiq_gphy_config_init(struct phy_device *phydev)
+static int vr9_gphy_config_init(struct phy_device *phydev)
 {
 	int err;
 
 	dev_dbg(&phydev->mdio.dev, "%s\n", __func__);
 
         /* Set LED0 blinking on rx/tx. */
-        lantiq_gphy_mmd_write(phydev, INT_LED0H, 0);
-        lantiq_gphy_mmd_write(phydev, INT_LED0L,
+        vr9_gphy_mmd_write(phydev, INT_LED0H, 0);
+        vr9_gphy_mmd_write(phydev, INT_LED0L,
                  INT_LED_RX | INT_LED_TX);
 
         /* Set LED1 binking on link speed: slow=10M, fast=100M, on=1G. */
-        lantiq_gphy_mmd_write(phydev, INT_LED1H,
+        vr9_gphy_mmd_write(phydev, INT_LED1H,
                  INT_LED_LINK1000 << 4 | INT_LED_LINK100);
-        lantiq_gphy_mmd_write(phydev, INT_LED1L,
+        vr9_gphy_mmd_write(phydev, INT_LED1L,
                  INT_LED_LINK10 << 4);
 
 	/* Mask all interrupts */
-	err = phy_write(phydev, LANTIQ_MDIO_IMASK, 0);
+	err = phy_write(phydev, MII_VR9_11G_IMASK, 0);
 	if (err)
 		return err;
 
 	/* Clear all pending interrupts */
-	phy_read(phydev, LANTIQ_MDIO_ISTAT);
+	phy_read(phydev, MII_VR9_11G_ISTAT);
 
         /* Set SGMII RX & TX timing skew to 2 ns & 2.5 ns respectively. */
         /* Set MII power supply to 2V5. */
@@ -368,12 +249,11 @@ static int lantiq_gphy_config_init(struct phy_device *phydev)
 	return 0;
 }
 
-static int lantiq_gphy14_config_aneg(struct phy_device *phydev)
+static int vr9_gphy_config_aneg(struct phy_device *phydev)
 {
 	int reg, err;
 
-	/* Advertise as multi-port device, see IEEE802.3-2002 40.5.1.1 */
-	/* This is a workaround for an errata in rev < 1.5 devices */
+	/* Advertise as multi-port device */
 	reg = phy_read(phydev, MII_CTRL1000);
 	reg |= ADVERTISED_MPD;
 	err = phy_write(phydev, MII_CTRL1000, reg);
@@ -383,7 +263,7 @@ static int lantiq_gphy14_config_aneg(struct phy_device *phydev)
 	return genphy_config_aneg(phydev);
 }
 
-static int lantiq_gphy_ack_interrupt(struct phy_device *phydev)
+static int vr9_gphy_ack_interrupt(struct phy_device *phydev)
 {
 	int reg;
 
@@ -396,108 +276,109 @@ static int lantiq_gphy_ack_interrupt(struct phy_device *phydev)
 	 * each other. Sometimes the two lines are driven at the same time
 	 * if only one GPHY core raises the interrupt.
 	 */
-	reg = phy_read(phydev, LANTIQ_MDIO_ISTAT);
+
+	reg = phy_read(phydev, MII_VR9_11G_ISTAT);
 
 	return (reg < 0) ? reg : 0;
 }
 
-static int lantiq_gphy_did_interrupt(struct phy_device *phydev)
+static int vr9_gphy_did_interrupt(struct phy_device *phydev)
 {
 	int reg;
 
-	reg = phy_read(phydev, LANTIQ_MDIO_ISTAT);
+	reg = phy_read(phydev, MII_VR9_11G_ISTAT);
 
 	return reg > 0;
 }
 
-static int lantiq_gphy_config_intr(struct phy_device *phydev)
+static int vr9_gphy_config_intr(struct phy_device *phydev)
 {
 	int err;
 
 	if (phydev->interrupts == PHY_INTERRUPT_ENABLED)
-		err = phy_write(phydev, LANTIQ_MDIO_IMASK, LANTIQ_MDIO_INIT_MASK);
+		err = phy_write(phydev, MII_VR9_11G_IMASK, INT_VR9_11G_MASK);
 	else
-		err = phy_write(phydev, LANTIQ_MDIO_IMASK, 0);
+		err = phy_write(phydev, MII_VR9_11G_IMASK, 0);
 
 	return err;
 }
 
-static struct phy_driver lantiq_gphy[] = {
+static struct phy_driver lantiq_phy[] = {
 	{
-		.phy_id		= PHY_ID_PHY11G_1_4,
+		.phy_id		= 0xd565a400,
 		.phy_id_mask	= 0xfffffffe,
-		.name		= "Lantiq XWAY PHY11G (PEF 7071/PEF 7072) v1.4",
+		.name		= "Lantiq XWAY PEF7071",
 		.features	= (PHY_GBIT_FEATURES | SUPPORTED_Pause),
 		.flags		= PHY_HAS_MAGICANEG, /*PHY_HAS_INTERRUPT,*/
-		.config_init	= lantiq_gphy_config_init,
-		.config_aneg	= lantiq_gphy14_config_aneg,
+		.config_init	= vr9_gphy_config_init,
+		.config_aneg	= vr9_gphy_config_aneg,
 		.read_status	= genphy_read_status,
-		.ack_interrupt	= lantiq_gphy_ack_interrupt,
-		.did_interrupt	= lantiq_gphy_did_interrupt,
-		.config_intr	= lantiq_gphy_config_intr,
+		.ack_interrupt	= vr9_gphy_ack_interrupt,
+		.did_interrupt	= vr9_gphy_did_interrupt,
+		.config_intr	= vr9_gphy_config_intr,
 	}, {
 		.phy_id		= 0x030260D0,
 		.phy_id_mask	= 0xfffffff0,
 		.name		= "Lantiq XWAY VR9 GPHY 11G v1.3",
 		.features	= (PHY_GBIT_FEATURES | SUPPORTED_Pause),
 		.flags		= 0, /*PHY_HAS_INTERRUPT,*/
-		.config_init	= lantiq_gphy_config_init,
-		.config_aneg	= lantiq_gphy14_config_aneg,
+		.config_init	= vr9_gphy_config_init,
+		.config_aneg	= vr9_gphy_config_aneg,
 		.read_status	= genphy_read_status,
-		.ack_interrupt	= lantiq_gphy_ack_interrupt,
-		.did_interrupt	= lantiq_gphy_did_interrupt,
-		.config_intr	= lantiq_gphy_config_intr,
+		.ack_interrupt	= vr9_gphy_ack_interrupt,
+		.did_interrupt	= vr9_gphy_did_interrupt,
+		.config_intr	= vr9_gphy_config_intr,
 	}, {
 		.phy_id		= 0xd565a408,
 		.phy_id_mask	= 0xfffffff8,
 		.name		= "Lantiq XWAY VR9 GPHY 11G v1.4",
 		.features	= (PHY_GBIT_FEATURES | SUPPORTED_Pause),
 		.flags		= 0, /*PHY_HAS_INTERRUPT,*/
-		.config_init	= lantiq_gphy_config_init,
-		.config_aneg	= lantiq_gphy14_config_aneg,
+		.config_init	= vr9_gphy_config_init,
+		.config_aneg	= vr9_gphy_config_aneg,
 		.read_status	= genphy_read_status,
-		.ack_interrupt	= lantiq_gphy_ack_interrupt,
-		.did_interrupt	= lantiq_gphy_did_interrupt,
-		.config_intr	= lantiq_gphy_config_intr,
+		.ack_interrupt	= vr9_gphy_ack_interrupt,
+		.did_interrupt	= vr9_gphy_did_interrupt,
+		.config_intr	= vr9_gphy_config_intr,
 	}, {
-		.phy_id		= PHY_ID_PHY11G_1_5,
+		.phy_id		= 0xd565a401,
 		.phy_id_mask	= 0xffffffff,
-		.name		= "Lantiq XWAY PHY11G (PEF 7071/PEF 7072) v1.5 / v1.6",
+		.name		= "Lantiq XWAY VR9 GPHY 11G v1.5",
 		.features	= (PHY_GBIT_FEATURES | SUPPORTED_Pause),
 		.flags		= 0, /*PHY_HAS_INTERRUPT,*/
-		.config_init	= lantiq_gphy_config_init,
-		.config_aneg	= lantiq_gphy14_config_aneg,
+		.config_init	= vr9_gphy_config_init,
+		.config_aneg	= vr9_gphy_config_aneg,
 		.read_status	= genphy_read_status,
-		.ack_interrupt	= lantiq_gphy_ack_interrupt,
-		.did_interrupt	= lantiq_gphy_did_interrupt,
-		.config_intr	= lantiq_gphy_config_intr,
+		.ack_interrupt	= vr9_gphy_ack_interrupt,
+		.did_interrupt	= vr9_gphy_did_interrupt,
+		.config_intr	= vr9_gphy_config_intr,
 	}, {
 		.phy_id		= 0xd565a418,
 		.phy_id_mask	= 0xfffffff8,
 		.name		= "Lantiq XWAY XRX PHY22F v1.4",
 		.features	= (PHY_BASIC_FEATURES | SUPPORTED_Pause),
 		.flags		= 0, /*PHY_HAS_INTERRUPT,*/
-		.config_init	= lantiq_gphy_config_init,
-		.config_aneg	= lantiq_gphy14_config_aneg,
+		.config_init	= vr9_gphy_config_init,
+		.config_aneg	= vr9_gphy_config_aneg,
 		.read_status	= genphy_read_status,
-		.ack_interrupt	= lantiq_gphy_ack_interrupt,
-		.did_interrupt	= lantiq_gphy_did_interrupt,
-		.config_intr	= lantiq_gphy_config_intr,
+		.ack_interrupt	= vr9_gphy_ack_interrupt,
+		.did_interrupt	= vr9_gphy_did_interrupt,
+		.config_intr	= vr9_gphy_config_intr,
 	},
 };
 
-module_phy_driver(lantiq_gphy);
+module_phy_driver(lantiq_phy);
 
-static struct mdio_device_id __maybe_unused lantiq_gphy_tbl[] = {
-	{ PHY_ID_PHY11G_1_4, 0xfffffffe },
-	{ 0x030260D0       , 0xfffffff0 },
-	{ 0xd565a408       , 0xfffffff8 },
-	{ PHY_ID_PHY11G_1_5, 0xffffffff },
-	{ 0xd565a418       , 0xfffffff8 },
+static struct mdio_device_id __maybe_unused lantiq_tbl[] = {
+	{ 0xd565a400, 0xfffffffe },
+	{ 0x030260D0, 0xfffffff0 },
+	{ 0xd565a408, 0xfffffff8 },
+	{ 0xd565a401, 0xffffffff },
+	{ 0xd565a418, 0xfffffff8 },
 	{ }
 };
 
-MODULE_DEVICE_TABLE(mdio, lantiq_gphy_tbl);
+MODULE_DEVICE_TABLE(mdio, lantiq_tbl);
 
 MODULE_DESCRIPTION("Lantiq PHY drivers");
 MODULE_AUTHOR("Daniel Schwierzeck <daniel.schwierzeck@googlemail.com>");

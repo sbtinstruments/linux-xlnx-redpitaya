@@ -424,8 +424,10 @@ struct device *class_find_device(struct class *class, struct device *start,
 		return NULL;
 	}
 
+	printk("%s: class check over\n", __func__);
 	class_dev_iter_init(&iter, class, start, NULL);
 	while ((dev = class_dev_iter_next(&iter))) {
+		dev_info(dev, "%s dev iterator\n", __func__);
 		if (match(dev, data)) {
 			get_device(dev);
 			break;

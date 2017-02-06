@@ -144,12 +144,21 @@ static struct fpga_manager *fpga_region_get_manager(struct fpga_region *region)
 	of_node_get(np);
 	while (np) {
 		if (of_device_is_compatible(np, "fpga-region")) {
+		        dev_dbg(dev, "%s: correct compatible string\n", __func__);
 			mgr_node = of_parse_phandle(np, "fpga-mgr", 0);
 			if (mgr_node) {
+		                dev_dbg(dev, "%s: fpga-mgr node found\n", __func__);
+		                dev_dbg(dev, "%s: fpga-mgr node name = %s\n", __func__, mgr_node->name);
 				mgr = of_fpga_mgr_get(mgr_node);
+		                dev_dbg(dev, "%s: fpga-mgr address = %p\n", __func__, mgr);
+		                //dev_dbg(dev, "%s: fpga-mgr = %s\n", __func__, mgr->name);
 				of_node_put(np);
 				return mgr;
-			}
+			} else {
+		                dev_dbg(dev, "%s: fpga-mgr node not found\n", __func__);
+                        }
+		} else {
+		        dev_dbg(dev, "%s: wrong compatible string\n", __func__);
 		}
 		np = of_get_next_parent(np);
 	}

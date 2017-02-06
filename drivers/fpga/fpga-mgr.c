@@ -319,6 +319,7 @@ struct fpga_manager *fpga_mgr_get(struct device *dev)
 {
 	struct device *mgr_dev = class_find_device(fpga_mgr_class, NULL, dev,
 						   fpga_mgr_dev_match);
+	dev_info(dev, "just get\n");
 	if (!mgr_dev)
 		return ERR_PTR(-ENODEV);
 
@@ -328,6 +329,7 @@ EXPORT_SYMBOL_GPL(fpga_mgr_get);
 
 static int fpga_mgr_of_node_match(struct device *dev, const void *data)
 {
+	dev_info(dev, "%s: dev->of_node @ %p, data @ %p\n", __func__, dev->of_node, data);
 	return dev->of_node == data;
 }
 
@@ -345,6 +347,7 @@ struct fpga_manager *of_fpga_mgr_get(struct device_node *node)
 
 	dev = class_find_device(fpga_mgr_class, NULL, node,
 				fpga_mgr_of_node_match);
+	dev_info(dev, "of get\n");
 	if (!dev)
 		return ERR_PTR(-ENODEV);
 
@@ -380,6 +383,7 @@ int fpga_mgr_register(struct device *dev, const char *name,
 	struct fpga_manager *mgr;
 	int id, ret;
 
+	dev_info(dev, "running register\n");
 	if (!mops || !mops->write_init || !mops->write ||
 	    !mops->write_complete || !mops->state) {
 		dev_err(dev, "Attempt to register without fpga_manager_ops\n");

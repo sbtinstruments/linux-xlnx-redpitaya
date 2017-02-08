@@ -492,7 +492,7 @@ static int zynq_fpga_remove(struct platform_device *pdev)
 
 #ifdef CONFIG_OF
 static const struct of_device_id zynq_fpga_of_match[] = {
-	{ .compatible = "xlnx,zynq-devcfg-1.0", },
+	{ .compatible = "xlnx,zynq-pcap-fpga", },
 	{},
 };
 

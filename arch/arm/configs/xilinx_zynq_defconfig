@@ -377,6 +377,3 @@ CONFIG_SPI_GPIO=y
 #CONFIG_DEBUG_GPIO=y
 # reset controler
 CONFIG_RESET_CONTROLLER=y
-
-# Power management
-CONFIG_CPUFREQ_DT=y

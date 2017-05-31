@@ -1,6 +1,6 @@
 /*
- * Red Pitaya 2016
- * dma client diver
+ * Red Pitaya 2017
+ * DMA client diver
  * Based on XILINX AXI DMA test
  *
  * This program is free software; you can redistribute it and/or modify
@@ -242,14 +242,14 @@ static int rprx_probe(struct platform_device *pd)
 		goto rmdev;
 	}
 
-	if (alloc_chrdev_region(&rx->dev_num, 0, 1, "rprx") < 0) {
+	if (alloc_chrdev_region(&rx->dev_num, 0, 1,  dev_name(dev)) < 0) {
 		return -1;
 	}
 	if ((rx->cl = class_create(THIS_MODULE, "chardrv")) == NULL) {
 		unregister_chrdev_region(rx->dev_num, 1);
 		return -1;
 	}
-	if (device_create(rx->cl, NULL, rx->dev_num, NULL, "rprx") == NULL) {
+	if (device_create(rx->cl, NULL, rx->dev_num, NULL,  dev_name(dev)) == NULL) {
 		class_destroy(rx->cl);
 		unregister_chrdev_region(rx->dev_num, 1);
 		return -1;

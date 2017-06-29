@@ -383,3 +383,5 @@ CONFIG_SPI_GPIO=y
 #CONFIG_DEBUG_GPIO=y
 # reset controler
 CONFIG_RESET_CONTROLLER=y
+# interrupt controller
+CONFIG_XILINX_INTC=y

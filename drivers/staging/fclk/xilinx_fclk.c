@@ -38,6 +38,7 @@ static int fclk_probe(struct platform_device *pdev)
 {
 	struct fclk_state *st;
 	int ret;
+	unsigned long rate;
 
 	st = devm_kzalloc(&pdev->dev, sizeof(*st), GFP_KERNEL);
 	if (!st)
@@ -50,7 +51,18 @@ static int fclk_probe(struct platform_device *pdev)
 	st->pl = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(st->pl))
 		return PTR_ERR(st->pl);
-
+		
+	rate = of_parse_phandle(&pdev->dev.of_node, "clock-rate", 0);
+		
+//	rate = clk_round_rate(st->pl, rate);
+	
+	ret = clk_set_rate(st->pl, rate);
+//	if (ret) {
+//		dev_err(&pdev->dev, "Unable to set rate of a clock.\n");
+		//return ret;
+	//}else
+		dev_info(&pdev->dev, "Clock rate set to: %lu.\n",rate);
+		
 	ret = clk_prepare_enable(st->pl);
 	if (ret) {
 		dev_err(&pdev->dev, "Unable to enable clock.\n");

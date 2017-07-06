@@ -367,3 +367,5 @@ CONFIG_I2C_GPIO=y
 CONFIG_SPI_GPIO=y
 # reset controler
 CONFIG_RESET_CONTROLLER=y
+# axi interrupt controller
+CONFIG_XILINX_INTC=y

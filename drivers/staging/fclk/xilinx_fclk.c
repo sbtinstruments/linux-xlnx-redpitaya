@@ -51,7 +51,7 @@ static int fclk_probe(struct platform_device *pdev)
 	st->pl = devm_clk_get(&pdev->dev, NULL);
 	if (IS_ERR(st->pl))
 		return PTR_ERR(st->pl);
-		
+
 	ret = of_property_read_u32(pdev->dev.of_node, "rate", &rate);
 	if (ret) {
 		dev_err(&pdev->dev, "No clock rate in device tree.\n");
@@ -69,7 +69,7 @@ static int fclk_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Unable to enable clock.\n");
 		return ret;
 	}
-	dev_info(&pdev->dev, "Clock enabled and set to: %lu Hz.\n",rate);
+	dev_info(&pdev->dev, "Clock enabled and set to: %lu Hz.\n", rate);
 
 	return 0;
 }

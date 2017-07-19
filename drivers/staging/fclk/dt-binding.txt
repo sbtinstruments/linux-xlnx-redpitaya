@@ -10,7 +10,8 @@ Required properties:
 
 Example:
 	fclk3: fclk3 {
-		status = "disabled";
+		status = "okay";
 		compatible = "xlnx,fclk";
 		clocks = <&clkc 71>;
+		rate = <125000000>;
 	};

@@ -69,7 +69,7 @@ static int fclk_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Unable to enable clock.\n");
 		return ret;
 	}
-	dev_info(&pdev->dev, "Clock enabled and set to: %lu Hz.\n", rate);
+	dev_info(&pdev->dev, "Clock enabled and set to: %u Hz.\n", rate);
 
 	return 0;
 }

@@ -1,0 +1,13 @@
+Binding for Xilinx axi hp settings
+
+Required properties:
+ - compatible: Must be 'axihp'
+ - raw: register value to write
+
+Example:
+	axihp0: axihp@f800800 {
+		status = "okay";
+		compatible = "axihp";
+		raw = <0x512>;
+		reg = <0xf800800>;
+	};

@@ -1,0 +1,9 @@
+#
+# Xilinx PL axi hp configurator
+#
+
+config AXIHP
+	tristate "Xilinx PL AXI_HP configurator"
+	depends on OF
+	---help---
+	  Support for the Xilinx zynq axi hp configuration. Mainly developed for setting axi_hs bus with that is 32 or 64 bit.

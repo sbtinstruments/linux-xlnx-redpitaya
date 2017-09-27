@@ -365,6 +365,8 @@ CONFIG_POWER_RESET_GPIO=y
 # additional GPIO consumers
 CONFIG_I2C_GPIO=y
 CONFIG_SPI_GPIO=y
+# driver for setting 32 bit dma interface
+CONFIG_AXIHP=y
 # reset controler
 CONFIG_RESET_CONTROLLER=y
 # axi interrupt controller

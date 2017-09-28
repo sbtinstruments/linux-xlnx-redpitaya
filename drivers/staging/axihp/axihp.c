@@ -28,10 +28,13 @@
 #include <linux/clk/zynq.h>
 
 struct axihp{
-	void __iomem *baseaddr;
+	struct regmap *slcr_regmap;
 	struct device *dev;
 	
 };
+
+#define to_axihp_data(p)		\
+	container_of((p), struct axihp, dev)
 
 static struct regmap *slcr_regmap;
 
@@ -67,20 +70,20 @@ static int axihp_probe(struct platform_device *pdev)
 	int ret;
 	u32 /*n32BitEn=0,*/ reg=0, raw=0;
 
-	slcr_regmap = syscon_regmap_lookup_by_compatible("xlnx,zynq-slcr");
+	slcr_regmap = syscon_regmap_lookup_by_phandle(pdev,"syscon");
+	
+	if(!slcr_regmap) return 0;
 	
 	ahp = devm_kzalloc(&pdev->dev, sizeof(*ahp), GFP_KERNEL);
 	if (!ahp)
 		return -ENOMEM;
-
+		
+	ahp->slcr_regmap=slcr_regmap;
+	
 	ahp->dev = &pdev->dev;
 
 	platform_set_drvdata(pdev, ahp);
 	
-	
-	//ahp->baseaddr=of_iomap(node, 0);
-	
-
 //get reg property out of devicetree 	
 	ret = of_property_read_u32(pdev->dev.of_node, "reg", &reg);
 	if (ret) {
@@ -108,7 +111,7 @@ static int axihp_probe(struct platform_device *pdev)
 //	}
 
 	//First we will have to unlock  SLCR settings by writing UNLOCK_KEY = 0XDF0D to 0XF8000008
-	regmap_write(slcr_regmap, 0x8, 0xDF0D);
+	regmap_write(ahp->slcr_regmap, 0x8, 0xDF0D);
 		
 	//level shifter comes next but I do not think that this is neccecary sice that is alredy set with fsbl
 	//EMIT_MASKWRITE(0XF8000900, 0x0000000FU ,0x0000000FU)
@@ -120,34 +123,34 @@ static int axihp_probe(struct platform_device *pdev)
 		case AXI_HP0:
 		case AXI_HP0W:{
 			//FPGA0_OUT_RST bit 0 of 0xf8000240
-			regmap_update_bits(slcr_regmap, SLCR_FPGA_RST_CTRL_OFFSET, 1,0);
+			regmap_update_bits(ahp->slcr_regmap, SLCR_FPGA_RST_CTRL_OFFSET, 1,0);
 		
 		}break;
 		case AXI_HP1:
 		case AXI_HP1W:{
 			//FPGA1_OUT_RST bit 1 of 0xf8000240	
-			regmap_update_bits(slcr_regmap, SLCR_FPGA_RST_CTRL_OFFSET, 2,0);
+			regmap_update_bits(ahp->slcr_regmap, SLCR_FPGA_RST_CTRL_OFFSET, 2,0);
 		
 		}break;
 		case AXI_HP2:
 		case AXI_HP2W:{	
 			//FPGA2_OUT_RST bit 2 of 0xf8000240
-			regmap_update_bits(slcr_regmap, SLCR_FPGA_RST_CTRL_OFFSET, 4,0);
+			regmap_update_bits(ahp->slcr_regmap, SLCR_FPGA_RST_CTRL_OFFSET, 4,0);
 		
 		}break;
 		case AXI_HP3:
 		case AXI_HP3W:{
 			//FPGA3_OUT_RST bit 3 of 0xf8000240
-			regmap_update_bits(slcr_regmap, SLCR_FPGA_RST_CTRL_OFFSET, 8,0);
+			regmap_update_bits(ahp->slcr_regmap, SLCR_FPGA_RST_CTRL_OFFSET, 8,0);
 		
 		}break;
 	}
 	// write raw walue to specified register offseted by base register of slcr
-	regmap_write(slcr_regmap, reg-SLCR, raw);
+	regmap_write(ahp->slcr_regmap, reg-SLCR, raw);
 
 	
 	// then lock it back with writing 0x0000767B to 0XF8000004 
-	regmap_write(slcr_regmap, 0x4, 0x767B);
+	regmap_write(ahp->slcr_regmap, 0x4, 0x767B);
 
 	dev_info(&pdev->dev, "AXI HP bus enabled and set to: %u.\n", raw);
 
@@ -156,10 +159,11 @@ static int axihp_probe(struct platform_device *pdev)
 
 static int axihp_remove(struct platform_device *pdev)
 {
-	struct axihp_state *st = platform_get_drvdata(pdev);
+	struct axihp *st = platform_get_drvdata(pdev);
 
 	//here disable specific bus just reverse it all
 	//or do nothing hm what is better? 
+	 devm_kfree(pdev,st);
 
 	return 0;
 }

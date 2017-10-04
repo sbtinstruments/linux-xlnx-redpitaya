@@ -36,8 +36,6 @@ struct axihp{
 #define to_axihp_data(p)		\
 	container_of((p), struct axihp, dev)
 
-static struct regmap *slcr_regmap;
-
 /* Match table for of_platform binding */
 static const struct of_device_id axihp_of_match[] = {
 	{ .compatible = "axihp",},
@@ -69,20 +67,23 @@ static int axihp_probe(struct platform_device *pdev)
 	struct axihp *ahp;
 	int ret;
 	u32 /*n32BitEn=0,*/ reg=0, raw=0;
-
-	slcr_regmap = syscon_regmap_lookup_by_phandle(pdev,"syscon");
-	
-	if(!slcr_regmap) return 0;
-	
 	ahp = devm_kzalloc(&pdev->dev, sizeof(*ahp), GFP_KERNEL);
-	if (!ahp)
+	if (!ahp){
+		dev_err(&pdev->dev, "Unable to allocate memmory for device structure.\n");
 		return -ENOMEM;
-		
-	ahp->slcr_regmap=slcr_regmap;
+	}
+	
+	platform_set_drvdata(pdev, ahp);
+	
+	ahp->slcr_regmap = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,"syscon");
+	
+	if(!ahp->slcr_regmap) {
+	dev_err(&pdev->dev, "Unable to aquire syscon pointer.\n");	
+		return 0;
+	}
+	
 	
 	ahp->dev = &pdev->dev;
-
-	platform_set_drvdata(pdev, ahp);
 	
 //get reg property out of devicetree 	
 	ret = of_property_read_u32(pdev->dev.of_node, "reg", &reg);

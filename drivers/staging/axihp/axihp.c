@@ -30,6 +30,9 @@
 struct axihp{
 	struct regmap *slcr_regmap;
 	struct device *dev;
+	uint32_t saved_raw;
+	uint32_t reg;
+	uint32_t raw;
 	
 };
 
@@ -66,7 +69,7 @@ static int axihp_probe(struct platform_device *pdev)
 {
 	struct axihp *ahp;
 	int ret;
-	u32 /*n32BitEn=0,*/ reg=0, raw=0;
+	u32 /*n32BitEn=0,*/ raw=0;
 	ahp = devm_kzalloc(&pdev->dev, sizeof(*ahp), GFP_KERNEL);
 	if (!ahp){
 		dev_err(&pdev->dev, "Unable to allocate memmory for device structure.\n");
@@ -84,21 +87,28 @@ static int axihp_probe(struct platform_device *pdev)
 	
 	
 	ahp->dev = &pdev->dev;
-	
+
 //get reg property out of devicetree 	
-	ret = of_property_read_u32(pdev->dev.of_node, "reg", &reg);
+	ret = of_property_read_u32(pdev->dev.of_node, "reg", &ahp->reg);
 	if (ret) {
 		dev_err(&pdev->dev, "No AXI_HP reg in device tree.\n");
 		return ret;
 	}
 	
 //get raw value out of device tree 
-	ret = of_property_read_u32(pdev->dev.of_node, "raw", &raw);
+	ret = of_property_read_u32(pdev->dev.of_node, "raw", &ahp->raw);
 	if (ret) {
 		dev_err(&pdev->dev, "No AXI_HP raw value in device tree.\n");
 		return ret;
 
 	} 
+
+	ret = regmap_read(ahp->slcr_regmap,  ahp->reg-SLCR, &(ahp->saved_raw)); \
+	if (ret) {
+		dev_err(&pdev->dev, "Unable to save previous register value for later use.\n");
+		return ret;
+	}
+	
 
 //some day you can get booleann for n32BitEn out of device tree but 
 //currently device tree does not support boolean and we will have to do
@@ -120,7 +130,7 @@ static int axihp_probe(struct platform_device *pdev)
 	//then set appropriate bit to 0 for reseting apropraite bus interface
 	//this might be done by reset-zynq driver in some way but I have not figred out specific interrface for that or just hard form syscom slcr driver...
 	
-	switch(reg){
+	switch(ahp->reg){
 		case AXI_HP0:
 		case AXI_HP0W:{
 			//FPGA0_OUT_RST bit 0 of 0xf8000240
@@ -147,24 +157,60 @@ static int axihp_probe(struct platform_device *pdev)
 		}break;
 	}
 	// write raw walue to specified register offseted by base register of slcr
-	regmap_write(ahp->slcr_regmap, reg-SLCR, raw);
+	regmap_write(ahp->slcr_regmap, ahp->reg-SLCR, ahp->raw);
 
 	
 	// then lock it back with writing 0x0000767B to 0XF8000004 
 	regmap_write(ahp->slcr_regmap, 0x4, 0x767B);
 
-	dev_info(&pdev->dev, "AXI HP bus enabled and set to: %u.\n", raw);
+	dev_info(&pdev->dev, "AXI HP bus enabled and set to: %u.\n", ahp->raw);
 
 	return 0;
 }
 
 static int axihp_remove(struct platform_device *pdev)
 {
-	struct axihp *st = platform_get_drvdata(pdev);
+	struct axihp *ahp = platform_get_drvdata(pdev);
 
 	//here disable specific bus just reverse it all
 	//or do nothing hm what is better? 
-	 devm_kfree(pdev,st);
+
+	regmap_write(ahp->slcr_regmap, 0x8, 0xDF0D);
+		
+	switch(ahp->reg){
+		case AXI_HP0:
+		case AXI_HP0W:{
+			//FPGA0_OUT_RST bit 0 of 0xf8000240
+			regmap_update_bits(ahp->slcr_regmap, SLCR_FPGA_RST_CTRL_OFFSET, 1,0);
+		
+		}break;
+		case AXI_HP1:
+		case AXI_HP1W:{
+			//FPGA1_OUT_RST bit 1 of 0xf8000240	
+			regmap_update_bits(ahp->slcr_regmap, SLCR_FPGA_RST_CTRL_OFFSET, 2,0);
+		
+		}break;
+		case AXI_HP2:
+		case AXI_HP2W:{	
+			//FPGA2_OUT_RST bit 2 of 0xf8000240
+			regmap_update_bits(ahp->slcr_regmap, SLCR_FPGA_RST_CTRL_OFFSET, 4,0);
+		
+		}break;
+		case AXI_HP3:
+		case AXI_HP3W:{
+			//FPGA3_OUT_RST bit 3 of 0xf8000240
+			regmap_update_bits(ahp->slcr_regmap, SLCR_FPGA_RST_CTRL_OFFSET, 8,0);
+		
+		}break;
+	}
+	regmap_write(ahp->slcr_regmap, ahp->reg-SLCR, ahp->raw);
+
+	
+	// then lock it back with writing 0x0000767B to 0XF8000004 
+	regmap_write(ahp->slcr_regmap, 0x4, 0x767B);
+
+
+	devm_kfree(pdev,ahp);
 
 	return 0;
 }

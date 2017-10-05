@@ -69,7 +69,7 @@ static int axihp_probe(struct platform_device *pdev)
 {
 	struct axihp *ahp;
 	int ret;
-	u32 /*n32BitEn=0,*/ raw=0;
+	/*u32 n32BitEn=0, raw=0;*/
 	ahp = devm_kzalloc(&pdev->dev, sizeof(*ahp), GFP_KERNEL);
 	if (!ahp){
 		dev_err(&pdev->dev, "Unable to allocate memmory for device structure.\n");
@@ -103,12 +103,12 @@ static int axihp_probe(struct platform_device *pdev)
 
 	} 
 
-	ret = regmap_read(ahp->slcr_regmap,  ahp->reg-SLCR, &(ahp->saved_raw)); \
+/*	ret = regmap_read(ahp->slcr_regmap,  ahp->reg-SLCR, &(ahp->saved_raw)); \
 	if (ret) {
 		dev_err(&pdev->dev, "Unable to save previous register value for later use.\n");
 		return ret;
 	}
-	
+	*/
 
 //some day you can get booleann for n32BitEn out of device tree but 
 //currently device tree does not support boolean and we will have to do
@@ -203,14 +203,14 @@ static int axihp_remove(struct platform_device *pdev)
 		
 		}break;
 	}
-	regmap_write(ahp->slcr_regmap, ahp->reg-SLCR, ahp->raw);
+	regmap_write(ahp->slcr_regmap, ahp->reg-SLCR, /*ahp->saved_raw*/0xf00);
 
 	
 	// then lock it back with writing 0x0000767B to 0XF8000004 
 	regmap_write(ahp->slcr_regmap, 0x4, 0x767B);
 
 
-	devm_kfree(pdev,ahp);
+	devm_kfree(ahp->dev,ahp);
 
 	return 0;
 }

@@ -7,6 +7,9 @@
  * This file is subject to the terms and conditions of the GNU General Public
  * License. See the file "COPYING" in the main directory of this archive
  * for more details.
+ *
+ *  2017/10/06, DM <dabvor.munda@kopica-sp.si>
+ *  Change code to enable driver initialization on usage of DTBO overlay.
  */
 
 #include <linux/irqdomain.h>
@@ -69,6 +72,14 @@ static unsigned int intc_read32_be(void __iomem *addr)
 	return ioread32be(addr);
 }
 
+/** Added by DM **/
+int xilinx_intc_of_init_done = 0;
+EXPORT_SYMBOL_GPL(xilinx_intc_of_init_done);
+
+static struct device_node *node_bck;
+int xilinx_intc_of_init(struct device_node *node, struct device_node *parent);
+
+
 static void intc_enable_or_unmask(struct irq_data *d)
 {
 	unsigned long mask = 1 << d->hwirq;
@@ -85,7 +96,16 @@ static void intc_enable_or_unmask(struct irq_data *d)
 		local_intc->write_fn(mask, local_intc->baseaddr + IAR);
 
 	local_intc->write_fn(mask, local_intc->baseaddr + SIE);
+	
+	/** Added by DM to enable all IRQs **/
+	local_intc->write_fn(MER_HIE | MER_ME, local_intc->baseaddr + MER);
+	local_intc->write_fn(0xffffffff, local_intc->baseaddr + IAR); /* Acknowledge any pending interrupts just in case. */
 }
+
+/** Added by DM **/
+static void xilinx_intc_of_cleanup(void);
+static u32 irq;
+static struct intc *intc = NULL;
 
 static void intc_disable_or_mask(struct irq_data *d)
 {
@@ -93,13 +113,18 @@ static void intc_disable_or_mask(struct irq_data *d)
 
 	pr_debug("disable: %ld\n", d->hwirq);
 	local_intc->write_fn(1 << d->hwirq, local_intc->baseaddr + CIE);
+
+        /** Added by DM **/
+	if (d->hwirq == 0  &&  intc) {
+	    xilinx_intc_of_cleanup();
+	}
 }
 
 static void intc_ack(struct irq_data *d)
 {
 	struct intc *local_intc = irq_data_get_irq_chip_data(d);
 
-	pr_debug("ack: %ld\n", d->hwirq);
+	pr_debug("intc_ack: %ld\n", d->hwirq);
 	local_intc->write_fn(1 << d->hwirq, local_intc->baseaddr + IAR);
 }
 
@@ -108,7 +133,7 @@ static void intc_mask_ack(struct irq_data *d)
 	unsigned long mask = 1 << d->hwirq;
 	struct intc *local_intc = irq_data_get_irq_chip_data(d);
 
-	pr_debug("disable_and_ack: %ld\n", d->hwirq);
+	pr_debug("intc_mask_ack: disable_and_ack: %ld\n", d->hwirq);
 	local_intc->write_fn(mask, local_intc->baseaddr + CIE);
 	local_intc->write_fn(mask, local_intc->baseaddr + IAR);
 }
@@ -126,9 +151,15 @@ static unsigned int get_irq(struct intc *local_intc)
 	int hwirq, irq = -1;
 
 	hwirq = local_intc->read_fn(local_intc->baseaddr + IVR);
-	if (hwirq != -1U)
+	if (hwirq != -1)
 		irq = irq_find_mapping(local_intc->domain, hwirq);
 
+	/** Just in case by DM, because HW can generate randomly wrong interrupts ? **/
+	if (unlikely((!irq || irq == -1) && hwirq != -1)) {
+		ack_bad_irq(irq);
+		irq = -1;
+	}
+	
 	pr_debug("get_irq: hwirq=%d, irq=%d\n", hwirq, irq);
 
 	return irq;
@@ -159,12 +190,14 @@ static const struct irq_domain_ops xintc_irq_domain_ops = {
 
 static void intc_handler(struct irq_desc *desc)
 {
-	struct irq_chip *chip = irq_desc_get_chip(desc);
+        /** Typecast by DM **/
+	struct irq_chip *chip = irq_desc_get_chip((struct irq_desc *)desc);
 	struct intc *local_intc =
-		irq_data_get_irq_handler_data(&desc->irq_data);
+		irq_data_get_irq_handler_data(&((struct irq_desc *)desc)->irq_data);
 	int irq;
+    
+	pr_debug("intc_handler: input irq = %d\n", ((struct irq_desc *)desc)->irq_data.irq);
 
-	pr_debug("intc_handler: input irq = %d\n", desc->irq_data.irq);
 	chained_irq_enter(chip, desc);
 
 	/*
@@ -180,12 +213,28 @@ static void intc_handler(struct irq_desc *desc)
 	chained_irq_exit(chip, desc);
 }
 
-static int __init xilinx_intc_of_init(struct device_node *node,
-					     struct device_node *parent)
+/** Added by DM **/
+extern unsigned int _irq_of_parse_and_map(struct device_node *, int);
+static void xilinx_intc_of_cleanup(void) {
+  
+	pr_debug("xilinx_intc_of_cleanup\n");
+	
+	disable_irq(irq);
+	irq_domain_remove(intc->domain);
+	iounmap(intc->baseaddr);
+	kfree(intc);
+	intc = NULL;
+		
+	xilinx_intc_of_init(node_bck, NULL);
+	xilinx_intc_of_init_done = 0;
+	    
+	return;
+}
+
+int xilinx_intc_of_init(struct device_node *node,
+		        struct device_node *parent)
 {
-	u32 irq;
 	int ret;
-	struct intc *intc;
 
 	intc = kzalloc(sizeof(struct intc), GFP_KERNEL);
 	if (!intc)
@@ -226,7 +275,7 @@ static int __init xilinx_intc_of_init(struct device_node *node,
 	 * explicity requested.
 	 */
 	intc->write_fn(0, intc->baseaddr + IER);
-
+	
 	/* Acknowledge any pending interrupts just in case. */
 	intc->write_fn(0xffffffff, intc->baseaddr + IAR);
 
@@ -249,7 +298,12 @@ static int __init xilinx_intc_of_init(struct device_node *node,
 	 * Check if this interrupt controller is a chained interrupt controller
 	 * and if so then set up the handler and enable it.
 	 */
-	irq = irq_of_parse_and_map(node, 0);
+	if (!xilinx_intc_of_init_done) { /** Added by DM **/
+	  irq = _irq_of_parse_and_map(node, 0);
+	} else {
+	  irq = irq_of_parse_and_map(node, 0);
+	}
+	
 	if (irq > 0) {
 		pr_info("%s: chained intc connected to irq %d\n",
 			 node->full_name, irq);
@@ -257,6 +311,10 @@ static int __init xilinx_intc_of_init(struct device_node *node,
 		irq_set_handler_data(irq, intc);
 		enable_irq(irq);
 	};
+
+        /** Added by DM **/
+	node_bck = node;
+	xilinx_intc_of_init_done = 1;
 
 	return 0;
 
@@ -267,5 +325,9 @@ error1:
 	kfree(intc);
 	return ret;
 }
+/** Added by DM **/
+EXPORT_SYMBOL_GPL(xilinx_intc_of_init);
 
-IRQCHIP_DECLARE(xilinx_intc, "xlnx,xps-intc-1.00.a", xilinx_intc_of_init);
+
+/** Commented by DM **/
+//IRQCHIP_DECLARE(xilinx_intc, "xlnx,xps-intc-1.00.a", xilinx_intc_of_init);

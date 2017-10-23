@@ -51,8 +51,8 @@ struct rprx_channel{
 	struct resource *res;
 	struct device_node *memory;
 	dma_cookie_t cookie;
-	int segment_cnt;
-	long segment_size;
+	unsigned int segment_cnt;
+	unsigned int segment_size;
 	unsigned char* addrv;
 	dma_addr_t addrp;
 	dma_addr_t segment;
@@ -61,6 +61,9 @@ struct rprx_channel{
 	enum dma_data_direction direction;
 	wait_queue_head_t wq;
 	u64 *memory_size;
+	unsigned num_devices; 
+    unsigned int minor_num; 
+    unsigned int major_num;
 };
 
 static ssize_t rprx_write(struct file *f, const char __user * buf,size_t len, loff_t * off){
@@ -93,6 +96,7 @@ int rprx_open(struct inode * i, struct file * f)
 
 /*
  * function blocks its user until rprx_slave_callback is called by dma engine
+ * todo: this mechanism should at one point be replaced with some sort of pool or select
  */
 int rprx_read(struct file *filep, char *buff, size_t len, loff_t *off)
 {
@@ -126,7 +130,7 @@ static long rprx_ioctl(struct file *file, unsigned int cmd , unsigned long arg)
 		dev_info(dev, "ioctl cyclic rx s:0x%lx c:0x%x\n",rx->segment_size,rx->segment_cnt);
 		smp_rmb();
 		rx->dmastatus=STATUS_BUSSY;
-		rx->d = rx->dev->device_prep_dma_cyclic(rx->chan,rx->addrp, rx->segment_size*rx->segment_cnt, rx->segment_size,DMA_DEV_TO_MEM, DMA_CTRL_ACK | DMA_PREP_INTERRUPT);
+		rx->d = rx->chan->device->device_prep_dma_cyclic(rx->chan,rx->addrp, rx->segment_size*rx->segment_cnt, rx->segment_size,DMA_DEV_TO_MEM, DMA_CTRL_ACK | DMA_PREP_INTERRUPT);
 		if(!rx->d){
 			dev_err(dev, "rxd not set properly\n");
 			rx->dmastatus=STATUS_ERROR;
@@ -180,7 +184,7 @@ static long rprx_ioctl(struct file *file, unsigned int cmd , unsigned long arg)
 		put_user(rx->dmastatus,(char*)arg);
 	}break;
 	default:
-		dev_info(dev, "ioctl %d-%lx not inmplemented \n",cmd,arg);
+		dev_info(dev, "ioctl %d-%lx not implemented \n",cmd,arg);
 	}return 0;
 }
 
@@ -222,7 +226,7 @@ static struct file_operations fops = {
  * */
 static int rprx_probe(struct platform_device *pd)
 {
-	int err;
+	int err,ret=0;
 
 	struct rprx_channel *rx ;
 	const struct device * dev =(const struct device *)&pd->dev;
@@ -235,35 +239,52 @@ static int rprx_probe(struct platform_device *pd)
 
 	platform_set_drvdata( rx->rpdev, rx );
 
+	rx->minor_num=MINORNMBR;
+	rx->major_num=MAJORNMBR;
+	rx->num_devices=NO_DMA_DEVICES;
 	rx->chan = dma_request_slave_channel(&rx->rpdev->dev, "axidma1");
-	if (IS_ERR(rx->chan)) {
+	if (IS_ERR_OR_NULL(rx->chan)) {
 		err = PTR_ERR(rx->chan);
 		dev_err(dev,"No DMA channel\n");
 		goto rmdev;
 	}
 
-	if (alloc_chrdev_region(&rx->dev_num, 0, 1,  dev_name(dev)) < 0) {
+	ret = of_property_read_u32(rx->rpdev->dev.of_node, "segment_size", &rx->segment_size);
+	if (ret) {
+		dev_err(&rx->rpdev->dev, "No segment_size value in device tree. Setting to %d\n",RX_SGMNT_SIZE);
+		rx->segment_size=RX_SGMNT_SIZE;
+	} 
+	
+	ret = of_property_read_u32(rx->rpdev->dev.of_node, "segment_count", &rx->segment_cnt);
+	if (ret) {
+		dev_err(&rx->rpdev->dev, "No segment_count value in device tree. Setting to %d\n",RX_SGMNT_CNT);
+		rx->segment_cnt=RX_SGMNT_CNT;
+	} 
+	
+	if (alloc_chrdev_region(&rx->dev_num, rx->minor_num, rx->num_devices,  dev_name(dev)) < 0) {
 		return -1;
 	}
+	
+   	rx->major_num = MAJOR(rx->dev_num);
+   	
 	if ((rx->cl = class_create(THIS_MODULE, "chardrv")) == NULL) {
 		unregister_chrdev_region(rx->dev_num, 1);
 		return -1;
 	}
-	if (device_create(rx->cl, NULL, rx->dev_num, NULL,  dev_name(dev)) == NULL) {
+	if (device_create(rx->cl, NULL,MKDEV(rx->major_num, rx->minor_num), NULL,  dev_name(dev)) == NULL) {
 		class_destroy(rx->cl);
-		unregister_chrdev_region(rx->dev_num, 1);
+		unregister_chrdev_region(rx->dev_num, rx->num_devices);
 		return -1;
 	}
-
+	
 	cdev_init(&rx->c_dev, &fops);
-	if (cdev_add(&rx->c_dev, rx->dev_num, 1) == -1) {
+
+	if (cdev_add(&rx->c_dev, rx->dev_num, rx->num_devices) == -1) {
 		device_destroy(rx->cl, rx->dev_num);
 		class_destroy(rx->cl);
 		unregister_chrdev_region(rx->dev_num, 1);
 		goto rmdev;
 	}
-
-	rx->dev = rx->chan->device;
 
 	rx->memory = of_parse_phandle(rx->rpdev->dev.of_node, "memory-region", 0);
 	if (!rx->memory) {
@@ -276,13 +297,11 @@ static int rprx_probe(struct platform_device *pd)
 
 	if (rx->addrv==NULL){
 		dev_err(dev, "DMA reserved memory not allocated\n");
-	goto rmdev;
+		goto rmdev;
 	}else {
-		dev_info(dev, "reserved dma: %p and 0x%x KiB @0x%x\n",(void*)rx->chan,(RX_SGMNT_CNT*RX_SGMNT_SIZE)/1024,rx->addrp);
+		dev_info(dev, "reserved dma: %p and 0x%x KiB @0x%x\n",(void*)rx->chan,((rx->segment_cnt)*(rx->segment_size))/1024,rx->addrp);
 	}
 
-	rx->segment_cnt=RX_SGMNT_CNT;
-	rx->segment_size=RX_SGMNT_SIZE;
 	rx->flag=0;
 	init_waitqueue_head(&rx->wq);
 	return 0;
@@ -291,7 +310,8 @@ rmdev:
 	device_destroy(rx->cl, rx->dev_num);
 	class_destroy(rx->cl);
 	unregister_chrdev_region(rx->dev_num, 1);
-	dma_release_channel(rx->chan);
+	if(rx->chan)
+		dma_release_channel(rx->chan);
 
 	return err;
 }
@@ -306,8 +326,11 @@ static int rprx_remove(struct platform_device *pdev)
 	}
 
 	cdev_del(&rx->c_dev);
-	device_destroy(rx->cl,rx->dev_num);
+	if(rx->cl){
+		device_destroy(rx->cl,rx->dev_num);
+
 	class_destroy(rx->cl);
+	}
 	unregister_chrdev_region(rx->dev_num,1);
 
 	return 0;

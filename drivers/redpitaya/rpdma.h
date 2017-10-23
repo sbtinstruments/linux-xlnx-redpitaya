@@ -48,11 +48,15 @@ ioctl macro definitions
  *	};
  * and SGMNT_SIZE should not be larger then 0x400000
  * */
-#define SGMNT_CNT 8
+#define SGMNT_CNT 2
 #define SGMNT_SIZE 4*1024*1024
 #define RX_SGMNT_CNT SGMNT_CNT
 #define RX_SGMNT_SIZE SGMNT_SIZE
 #define TX_SGMNT_CNT 0
 #define TX_SGMNT_SIZE SGMNT_SIZE
+#define MINORNMBR 0
+#define MAJORNMBR 0
+#define NO_DMA_DEVICES 1
+
 
 #endif // __RPDMA_H

@@ -267,11 +267,13 @@ static int rprx_probe(struct platform_device *pd)
 	
    	rx->major_num = MAJOR(rx->dev_num);
    	
-	if ((rx->cl = class_create(THIS_MODULE, "chardrv")) == NULL) {
+	if ((rx->cl = class_create(THIS_MODULE, dev_name(dev))) == NULL) {
 		unregister_chrdev_region(rx->dev_num, 1);
 		return -1;
 	}
-	if (device_create(rx->cl, NULL,MKDEV(rx->major_num, rx->minor_num), NULL,  dev_name(dev)) == NULL) {
+	
+	rx->dev_num=MKDEV(rx->major_num, rx->minor_num);
+	if (device_create(rx->cl, NULL,rx->dev_num, NULL,  dev_name(dev)) == NULL) {
 		class_destroy(rx->cl);
 		unregister_chrdev_region(rx->dev_num, rx->num_devices);
 		return -1;
@@ -323,16 +325,29 @@ static int rprx_remove(struct platform_device *pdev)
 	dev_info(dev, "remove\n");
 	if(rx->chan){
 		dma_release_channel(rx->chan);
+		//dev_info(dev, "dma_release_channel\n");
 	}
-
-	cdev_del(&rx->c_dev);
-	if(rx->cl){
+	
+	if(rx->cl&&rx->dev_num){
 		device_destroy(rx->cl,rx->dev_num);
-
-	class_destroy(rx->cl);
+		//dev_info(dev, "device_destroy\n");
 	}
-	unregister_chrdev_region(rx->dev_num,1);
 
+	if(rx->cl){
+		class_destroy(rx->cl);	
+		//dev_info(dev, "class_destroy\n");
+	}
+	
+
+	if(rx){
+		unregister_chrdev_region(rx->dev_num,1);
+		//dev_info(dev, "unregister_chrdev_region\n");
+	}
+	
+	if(dev&&rx){
+		devm_kfree(dev,rx);
+		//printk(KERN_ERR "free\n");
+	}
 	return 0;
 }
 

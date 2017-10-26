@@ -54,6 +54,7 @@ struct rprx_channel{
 	unsigned int segment_cnt;
 	unsigned int segment_size;
 	unsigned char* addrv;
+	unsigned char* addrv_magic;
 	dma_addr_t addrp;
 	dma_addr_t segment;
 	int flag;
@@ -229,11 +230,29 @@ static int rprx_release(struct inode *ino, struct file *file)
  * call dma_common_mmap to enable user to use mmap dma reserved memory
  * */
 static int rprx_mmap(struct file * f, struct vm_area_struct * v)
-{
+{	int i, no_pages;
+	
+	no_pages = ((v->vm_end - v->vm_start)/0x1000);
+	struct page *pages[no_pages*2+1];
 	struct rprx_channel *rx = (struct rprx_channel *)f->private_data;
 	const struct device * dev =(const struct device *)&rx->rpdev->dev;
 	dev_info(dev, "mmap\n");
-	return dma_common_mmap(&rx->rpdev->dev, v, rx->addrv, rx->addrp,v->vm_end - v->vm_start);
+
+//	return dma_common_mmap(&rx->rpdev->dev, v, rx->addrv, rx->addrp,v->vm_end - v->vm_start);
+
+
+	//Iterate through memory once
+	for (i=0; i<=no_pages; i++){
+			pages[i]=rx->addrp+i*0x1000;
+	}
+	//and second time for magic buffer
+	for (i=0; i<=no_pages; i++){
+			pages[i+no_pages]=rx->addrp+i*0x1000;
+	}
+	
+	rx->addrv_magic=vmap(pages, ARRAY_SIZE(pages), VM_MAP, PAGE_KERNEL);
+	
+	return rx->addrv_magic;
 }
 
 static struct file_operations fops = {

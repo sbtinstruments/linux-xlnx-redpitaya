@@ -1,0 +1,24 @@
+uboot_tools=/projects/u-boot-xlnx/tools
+processors=$(shell grep -c ^processor /proc/cpuinfo)
+cflags="-O2 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=hard"
+makecmd=$(MAKE) -j $(processors) \
+	ARCH=arm CFLAGS=$(cflags) \
+	LOCALVERSION=
+
+ifeq ($(CROSS_COMPILE),arm-xilinx-linux-gnueabi-)
+$(error Xilinx toolset is unsupported. Please use the Linaro toolset.)
+else ifeq ($(CROSS_COMPILE),arm-linux-gnueabihf-)
+else ifndef CROSS_COMPILE
+$(error CROSS_COMPILE must be defined)
+endif
+
+.PHONY: arch/arm/boot/uImage
+arch/arm/boot/uImage:
+	$(makecmd) ARCH=arm xilinx_zynq_defconfig
+	PATH=$(PATH):$(uboot_tools) $(makecmd) UIMAGE_LOADADDR=0x8000 uImage
+
+modules = drivers/staging/fbtft/fbtft_device.ko \
+          drivers/staging/fbtft/flexfb.ko
+.PHONY: $(modules)
+$(modules):
+	$(makecmd) modules

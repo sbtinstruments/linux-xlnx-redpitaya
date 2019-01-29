@@ -2,8 +2,7 @@ uboot_tools=/projects/u-boot-xlnx/tools
 processors=$(shell grep -c ^processor /proc/cpuinfo)
 cflags="-O2 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=hard"
 makecmd=$(MAKE) -j $(processors) \
-	ARCH=arm CFLAGS=$(cflags) \
-	LOCALVERSION=
+	ARCH=arm CFLAGS=$(cflags)
 
 ifeq ($(CROSS_COMPILE),arm-xilinx-linux-gnueabi-)
 $(error Xilinx toolset is unsupported. Please use the Linaro toolset.)

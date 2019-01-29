@@ -118,3 +118,6 @@ all.config
 # dtb objects
 *.dtb
 *.dtbo
+
+# Overrides
+!.scmversion

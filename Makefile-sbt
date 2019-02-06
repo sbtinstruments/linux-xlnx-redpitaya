@@ -1,3 +1,7 @@
+# Remote system
+remote_host?=bbfpa0
+remote_target_dir=/media/system/lib/python3.7/site-packages/baxter
+# Cross-compilation
 uboot_tools=/projects/u-boot-xlnx/tools
 processors=$(shell grep -c ^processor /proc/cpuinfo)
 cflags="-O2 -mtune=cortex-a9 -mfpu=neon -mfloat-abi=hard"
@@ -21,3 +25,11 @@ modules = drivers/staging/fbtft/fbtft_device.ko \
 .PHONY: $(modules)
 $(modules):
 	$(makecmd) modules
+
+.PHONY: install-remote
+install-remote:
+	@echo "Installing to $(remote_host)..."
+	ssh $(remote_host) "mount -o rw,remount \$$(readlink /media/system)"
+	scp arch/arm/boot/uImage $(remote_host):/boot/uImage
+	ssh $(remote_host) "mount -o ro,remount \$$(readlink /media/system)"
+	@echo "Successfully installed to $(remote_host)."

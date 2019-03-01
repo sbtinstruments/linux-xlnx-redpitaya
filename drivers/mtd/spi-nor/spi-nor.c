@@ -1120,6 +1120,9 @@ static int spi_nor_is_locked(struct mtd_info *mtd, loff_t ofs, uint64_t len)
  * old entries may be missing 4K flag.
  */
 static const struct flash_info spi_nor_ids[] = {
+	/* Adesto -- continuation of Atmel's at25xxx and at45xxx series */
+	{ "at25sf041",  INFO(0x1f8401, 0, 64 * 1024,   8, SECT_4K) },
+
 	/* Atmel -- some are (confusingly) marketed as "DataFlash" */
 	{ "at25fs010",  INFO(0x1f6601, 0, 32 * 1024,   4, SECT_4K) },
 	{ "at25fs040",  INFO(0x1f6604, 0, 64 * 1024,   8, SECT_4K) },

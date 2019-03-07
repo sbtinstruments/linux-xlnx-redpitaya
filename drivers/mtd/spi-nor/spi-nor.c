@@ -1742,6 +1742,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 	if (IS_ERR_OR_NULL(info))
 		return -ENOENT;
 
+#ifdef CONFIG_MTD_SPI_NOR_JEDEC_ID_CHECK
 	/*
 	 * If caller has specified name of flash model that can normally be
 	 * detected using JEDEC, let's verify it.
@@ -1765,6 +1766,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 			info = (struct flash_info *)jinfo;
 		}
 	}
+#endif
 
 	mutex_init(&nor->lock);
 
